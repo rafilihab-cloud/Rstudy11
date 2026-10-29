@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#fbbf24" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#0f172a" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Background with smooth rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Inner subtle glow ring -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="4" />
+
+  <!-- School Emblem Shield & Graduation Icon Group -->
+  <g filter="url(#shadow)" transform="translate(0, 0)">
+    <!-- Graduation Cap / Mortarboard -->
+    <path d="M256 120 L390 190 L256 260 L122 190 Z" fill="#ffffff" />
+    <path d="M256 220 L370 162 L370 178 L256 236 L142 178 L142 162 Z" fill="rgba(255,255,255,0.4)" />
+    
+    <!-- Tassel -->
+    <path d="M370 190 L370 270 Q370 290 380 300" fill="none" stroke="url(#goldGrad)" stroke-width="8" stroke-linecap="round" />
+    <circle cx="380" cy="305" r="9" fill="url(#goldGrad)" />
+
+    <!-- Open Book / Pages -->
+    <g transform="translate(146, 275)">
+      <!-- Left Page -->
+      <path d="M110 20 C80 15, 30 18, 0 35 L0 120 C30 105, 80 102, 110 115 Z" fill="#ffffff" opacity="0.95" />
+      <!-- Right Page -->
+      <path d="M110 20 C140 15, 190 18, 220 35 L220 120 C190 105, 140 102, 110 115 Z" fill="#ffffff" />
+      <!-- Book spine bookmark ribbon -->
+      <path d="M106 20 L114 20 L114 135 L110 128 L106 135 Z" fill="url(#goldGrad)" />
+      <!-- Decorative lines on pages -->
+      <line x1="20" y1="55" x2="90" y2="52" stroke="#93c5fd" stroke-width="4" stroke-linecap="round" />
+      <line x1="20" y1="75" x2="85" y2="72" stroke="#93c5fd" stroke-width="4" stroke-linecap="round" />
+      <line x1="20" y1="95" x2="70" y2="92" stroke="#93c5fd" stroke-width="4" stroke-linecap="round" />
+
+      <line x1="130" y1="52" x2="200" y2="55" stroke="#93c5fd" stroke-width="4" stroke-linecap="round" />
+      <line x1="130" y1="72" x2="195" y2="75" stroke="#93c5fd" stroke-width="4" stroke-linecap="round" />
+      <line x1="130" y1="92" x2="180" y2="95" stroke="#93c5fd" stroke-width="4" stroke-linecap="round" />
+    </g>
+
+    <!-- Star of Excellence at Top Center -->
+    <polygon points="256,76 261,90 276,90 264,99 268,113 256,104 244,113 248,99 236,90 251,90" fill="url(#goldGrad)" />
+  </g>
+</svg>

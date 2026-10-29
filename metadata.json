@@ -1,0 +1,6 @@
+{
+  "name": "Rstudy",
+  "description": "منصة Rstudy التعليمية الذكية لإدارة المدارس والمعاهد (PWA) - جداول مخصصة، حضور فوري، رصد درجات، وتوليد حسابات تلقائي.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
