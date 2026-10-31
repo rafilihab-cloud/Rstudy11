@@ -9,6 +9,7 @@ import {
   LogOut,
   ShieldCheck,
   CheckCircle2,
+  MessageSquare,
 } from 'lucide-react';
 
 interface Props {
@@ -29,6 +30,7 @@ export const Navbar: React.FC<Props> = ({
     currentRole,
     announcements,
     attendance,
+    messages,
     schools,
     activeSchool,
     resetToDefaults,
@@ -41,9 +43,10 @@ export const Navbar: React.FC<Props> = ({
 
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Compute urgent alerts
+  // Compute urgent alerts and direct messages for current user
   const urgentAnnouncements = announcements.filter((a) => a.priority === 'urgent');
   const todayAbsences = attendance.filter((a) => a.date === '2026-10-28' && a.status === 'absent');
+  const myMessagesCount = messages.filter((m) => m.recipientId === currentUser?.id).length;
 
   const getRoleConfig = () => {
     switch (currentRole) {
@@ -130,6 +133,26 @@ export const Navbar: React.FC<Props> = ({
             {/* PWA Install Button */}
             <div className="shrink-0">
               <PWAInstallButton />
+            </div>
+
+            {/* Direct Messages Quick Nav */}
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setActiveTab('messages')}
+                className={`relative p-2 rounded-xl transition ${
+                  activeTab === 'messages'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+                title={language === 'ar' ? 'الرسائل المباشرة' : 'Direct Messages'}
+              >
+                <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
+                {myMessagesCount > 0 && activeTab !== 'messages' && (
+                  <span className="absolute -top-0.5 -right-0.5 px-1.5 py-0.2 rounded-full bg-blue-600 text-white font-black text-[9px] ring-2 ring-white">
+                    {myMessagesCount}
+                  </span>
+                )}
+              </button>
             </div>
 
             {/* Notifications Dropdown */}

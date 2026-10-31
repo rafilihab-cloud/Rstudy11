@@ -207,6 +207,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   schoolId?: string;
+  isRead?: boolean;
 }
 
 export interface ParentAccount {

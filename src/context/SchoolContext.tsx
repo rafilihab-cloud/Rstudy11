@@ -140,6 +140,7 @@ interface SchoolContextType {
 
   addAnnouncement: (ann: Omit<SchoolAnnouncement, 'id' | 'date'>) => void;
   sendMessage: (recipientId: string, content: string) => void;
+  markMessagesAsRead: (senderId: string) => void;
 
   // Authentication & Production Session
   isAuthenticated: boolean;
@@ -645,6 +646,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             cloudAttendance,
             cloudTimetable,
             cloudAnnouncements,
+            cloudMessages,
           ] = await Promise.all([
             fetchCollectionFromFirestore<Student>('students'),
             fetchCollectionFromFirestore<Teacher>('teachers'),
@@ -654,6 +656,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             fetchCollectionFromFirestore<AttendanceRecord>('attendance'),
             fetchCollectionFromFirestore<TimetableEntry>('timetable'),
             fetchCollectionFromFirestore<SchoolAnnouncement>('announcements'),
+            fetchCollectionFromFirestore<ChatMessage>('messages'),
           ]);
 
           if (isMounted) {
@@ -721,6 +724,9 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             if (cloudAnnouncements && cloudAnnouncements.length > 0) {
               setAnnouncements((curr) => mergeCollections(curr, cloudAnnouncements));
             }
+            if (cloudMessages && cloudMessages.length > 0) {
+              setMessages((curr) => mergeCollections(curr, cloudMessages));
+            }
           }
         } else {
           // Fresh Firestore: seed initial dataset
@@ -736,6 +742,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               syncCollectionToFirestore('attendance', attendance),
               syncCollectionToFirestore('timetable', timetable),
               syncCollectionToFirestore('announcements', announcements),
+              syncCollectionToFirestore('messages', messages),
             ]);
           }
         }
@@ -1322,11 +1329,29 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       senderName: currentUser.name,
       senderRole: currentUser.role,
       recipientId,
-      content,
+      content: content.trim(),
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
       schoolId: activeSchoolId,
+      isRead: false,
     };
     setMessages((prev) => [...prev, newMsg]);
+    syncDocToFirestore('messages', newMsg).catch(() => {});
+  };
+
+  const markMessagesAsRead = (senderId: string) => {
+    setMessages((prev) => {
+      let hasChanges = false;
+      const updated = prev.map((msg) => {
+        if (msg.senderId === senderId && msg.recipientId === currentUser.id && !msg.isRead) {
+          hasChanges = true;
+          const updatedMsg = { ...msg, isRead: true };
+          syncDocToFirestore('messages', updatedMsg).catch(() => {});
+          return updatedMsg;
+        }
+        return msg;
+      });
+      return hasChanges ? updated : prev;
+    });
   };
 
   // Production Database Backup & Restore

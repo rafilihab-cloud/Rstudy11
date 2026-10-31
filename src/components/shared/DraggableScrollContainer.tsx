@@ -39,7 +39,7 @@ export const DraggableScrollContainer: React.FC<DraggableScrollContainerProps> =
     if (!el) return;
 
     const { scrollLeft, scrollWidth, clientWidth } = el;
-    const maxScroll = scrollWidth - clientWidth;
+    const maxScroll = Math.max(0, scrollWidth - clientWidth);
 
     if (maxScroll <= 2) {
       setHasOverflow(false);
@@ -52,12 +52,15 @@ export const DraggableScrollContainer: React.FC<DraggableScrollContainerProps> =
     const isRtl = document.documentElement.dir === 'rtl' || document.dir === 'rtl';
 
     if (isRtl) {
+      // In RTL, scrollLeft is either negative (0 to -maxScroll) or positive (0 to maxScroll) depending on engine
       const absScroll = Math.abs(scrollLeft);
-      setCanScrollLeft(absScroll < maxScroll - 4);
-      setCanScrollRight(absScroll > 4);
+      // Can scroll left means we have not reached the left edge yet
+      setCanScrollLeft(absScroll < maxScroll - 3);
+      // Can scroll right means we have moved away from the right edge
+      setCanScrollRight(absScroll > 3);
     } else {
-      setCanScrollLeft(scrollLeft > 4);
-      setCanScrollRight(scrollLeft < maxScroll - 4);
+      setCanScrollLeft(scrollLeft > 3);
+      setCanScrollRight(scrollLeft < maxScroll - 3);
     }
   }, []);
 
@@ -70,15 +73,17 @@ export const DraggableScrollContainer: React.FC<DraggableScrollContainerProps> =
     window.addEventListener('resize', handleResize);
     el.addEventListener('scroll', checkBounds, { passive: true });
 
-    // Native Wheel event to allow effortless horizontal scrolling with mouse wheel
+    // Enable smooth horizontal scrolling with mouse wheel over the strip
     const handleNativeWheel = (e: WheelEvent) => {
       if (el.scrollWidth <= el.clientWidth) return;
 
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && e.deltaY !== 0) {
+      // Handle vertical wheel delta converted to horizontal scroll
+      if (Math.abs(e.deltaY) > 0 && Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
         e.preventDefault();
         const isRtl = document.documentElement.dir === 'rtl' || document.dir === 'rtl';
-        const scrollStep = e.deltaY > 0 ? 120 : -120;
-        el.scrollLeft += isRtl ? -scrollStep : scrollStep;
+        // In RTL, scrolling wheel down should move left (towards hidden items)
+        const scrollDelta = e.deltaY > 0 ? 140 : -140;
+        el.scrollLeft += isRtl ? -scrollDelta : scrollDelta;
         checkBounds();
       }
     };
@@ -91,8 +96,9 @@ export const DraggableScrollContainer: React.FC<DraggableScrollContainerProps> =
       resizeObserver.observe(el.firstElementChild);
     }
 
-    const t1 = setTimeout(checkBounds, 80);
-    const t2 = setTimeout(checkBounds, 300);
+    const t1 = setTimeout(checkBounds, 60);
+    const t2 = setTimeout(checkBounds, 250);
+    const t3 = setTimeout(checkBounds, 600);
 
     return () => {
       window.removeEventListener('resize', handleResize);
@@ -101,55 +107,65 @@ export const DraggableScrollContainer: React.FC<DraggableScrollContainerProps> =
       resizeObserver.disconnect();
       clearTimeout(t1);
       clearTimeout(t2);
+      clearTimeout(t3);
     };
   }, [checkBounds]);
 
-  // Click & Drag Handler: only activates drag when mouse moves > 7px, never swallows clicks
+  // Robust Global Mouse Dragging for PC:
+  // When mouse is pressed down on the container, we listen to window mousemove and mouseup!
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only primary mouse button
     if (e.button !== 0 || !scrollRef.current) return;
 
     isMouseDownRef.current = true;
     isDraggingRef.current = false;
-    startXRef.current = e.pageX - scrollRef.current.offsetLeft;
+    startXRef.current = e.clientX;
     scrollLeftRef.current = scrollRef.current.scrollLeft;
     blockClickRef.current = false;
-  };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isMouseDownRef.current || !scrollRef.current) return;
+    const onGlobalMouseMove = (moveEvent: MouseEvent) => {
+      if (!isMouseDownRef.current || !scrollRef.current) return;
 
-    const x = e.pageX - scrollRef.current.offsetLeft;
-    const walk = x - startXRef.current;
+      const deltaX = moveEvent.clientX - startXRef.current;
 
-    // Only activate drag mode if cursor moved more than 7 pixels
-    if (Math.abs(walk) > 7) {
-      if (!isDraggingRef.current) {
-        isDraggingRef.current = true;
-        setIsDragging(true);
-        blockClickRef.current = true;
+      // Once moved beyond 4px, engage drag mode
+      if (Math.abs(deltaX) > 4) {
+        if (!isDraggingRef.current) {
+          isDraggingRef.current = true;
+          setIsDragging(true);
+          blockClickRef.current = true;
+          document.body.style.userSelect = 'none';
+        }
+
+        // Scroll follows the drag naturally
+        scrollRef.current.scrollLeft = scrollLeftRef.current - deltaX;
+        checkBounds();
       }
-      scrollRef.current.scrollLeft = scrollLeftRef.current - walk;
-      checkBounds();
-    }
-  };
+    };
 
-  const handleMouseUpOrLeave = () => {
-    if (isMouseDownRef.current) {
+    const onGlobalMouseUp = () => {
       isMouseDownRef.current = false;
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', onGlobalMouseMove);
+      window.removeEventListener('mouseup', onGlobalMouseUp);
+
       if (isDraggingRef.current) {
         setIsDragging(false);
         setTimeout(() => {
           isDraggingRef.current = false;
           blockClickRef.current = false;
-        }, 80);
+        }, 100);
       } else {
         isDraggingRef.current = false;
         blockClickRef.current = false;
       }
-    }
+    };
+
+    window.addEventListener('mousemove', onGlobalMouseMove);
+    window.addEventListener('mouseup', onGlobalMouseUp);
   };
 
-  // Block clicks ONLY when the user performed an actual drag gesture
+  // Block clicks on inner buttons ONLY if user performed a genuine drag
   const handleClickCapture = (e: React.MouseEvent) => {
     if (blockClickRef.current) {
       e.preventDefault();
@@ -157,13 +173,32 @@ export const DraggableScrollContainer: React.FC<DraggableScrollContainerProps> =
     }
   };
 
+  // Manual smooth scroll by arrow buttons
   const scrollHorizontally = (direction: 'left' | 'right') => {
-    if (!scrollRef.current) return;
-    const step = 240;
-    const offset = direction === 'left' ? -step : step;
-    scrollRef.current.scrollBy({ left: offset, behavior: 'smooth' });
-    setTimeout(checkBounds, 180);
-    setTimeout(checkBounds, 360);
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const isRtl = document.documentElement.dir === 'rtl' || document.dir === 'rtl';
+    const step = 260;
+
+    if (direction === 'left') {
+      // In RTL, moving left means moving further into negative scrollLeft
+      if (isRtl) {
+        el.scrollBy({ left: -step, behavior: 'smooth' });
+      } else {
+        el.scrollBy({ left: -step, behavior: 'smooth' });
+      }
+    } else {
+      // Moving right
+      if (isRtl) {
+        el.scrollBy({ left: step, behavior: 'smooth' });
+      } else {
+        el.scrollBy({ left: step, behavior: 'smooth' });
+      }
+    }
+
+    setTimeout(checkBounds, 120);
+    setTimeout(checkBounds, 320);
   };
 
   const fadeGradientLeft =
@@ -180,17 +215,17 @@ export const DraggableScrollContainer: React.FC<DraggableScrollContainerProps> =
       ? 'from-transparent to-transparent'
       : 'from-white via-white/80 to-transparent';
 
-  const btnDimension = arrowSize === 'sm' ? 'w-7 h-7' : 'w-8 h-8';
-  const iconDimension = arrowSize === 'sm' ? 'w-4 h-4' : 'w-4.5 h-4.5';
+  const btnDimension = arrowSize === 'sm' ? 'w-8 h-8' : 'w-9 h-9';
+  const iconDimension = arrowSize === 'sm' ? 'w-4 h-4' : 'w-5 h-5';
 
   return (
     <div className={`relative group/scroll ${wrapperClassName}`}>
-      {/* Left Navigation Arrow */}
+      {/* Left Navigation Arrow (Always accessible on PC when overflow left is available) */}
       {showArrows && hasOverflow && canScrollLeft && (
         <button
           type="button"
           onClick={() => scrollHorizontally('left')}
-          className={`flex absolute left-0.5 top-1/2 -translate-y-1/2 z-20 ${btnDimension} rounded-full bg-white/95 text-slate-800 shadow-md border border-slate-200/90 items-center justify-center hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all active:scale-95 cursor-pointer backdrop-blur-xs`}
+          className={`flex absolute left-0.5 top-1/2 -translate-y-1/2 z-30 ${btnDimension} rounded-full bg-white text-slate-800 shadow-md hover:shadow-lg border border-slate-300 items-center justify-center hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all active:scale-90 cursor-pointer`}
           title="تمرير لليسار (Scroll Left)"
           aria-label="Scroll left"
         >
@@ -209,12 +244,9 @@ export const DraggableScrollContainer: React.FC<DraggableScrollContainerProps> =
       <div
         ref={scrollRef}
         onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUpOrLeave}
-        onMouseLeave={handleMouseUpOrLeave}
         onClickCapture={handleClickCapture}
         className={`overflow-x-auto touch-pan-x transition-colors draggable-scroll-container ${
-          isDragging ? 'cursor-grabbing select-none' : 'cursor-default'
+          isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'
         } ${className}`}
         style={{
           WebkitOverflowScrolling: 'touch',
@@ -230,12 +262,12 @@ export const DraggableScrollContainer: React.FC<DraggableScrollContainerProps> =
         />
       )}
 
-      {/* Right Navigation Arrow */}
+      {/* Right Navigation Arrow (Always accessible on PC when overflow right is available) */}
       {showArrows && hasOverflow && canScrollRight && (
         <button
           type="button"
           onClick={() => scrollHorizontally('right')}
-          className={`flex absolute right-0.5 top-1/2 -translate-y-1/2 z-20 ${btnDimension} rounded-full bg-white/95 text-slate-800 shadow-md border border-slate-200/90 items-center justify-center hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all active:scale-95 cursor-pointer backdrop-blur-xs`}
+          className={`flex absolute right-0.5 top-1/2 -translate-y-1/2 z-30 ${btnDimension} rounded-full bg-white text-slate-800 shadow-md border hover:shadow-lg border-slate-300 items-center justify-center hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all active:scale-90 cursor-pointer`}
           title="تمرير لليمين (Scroll Right)"
           aria-label="Scroll right"
         >
