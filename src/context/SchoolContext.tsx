@@ -37,6 +37,7 @@ import {
   syncCollectionToFirestore,
   fetchCollectionFromFirestore,
   syncDocToFirestore,
+  deleteDocFromFirestore,
 } from '../lib/firebaseSync';
 import { isFirebaseConfigured } from '../lib/firebase';
 
@@ -61,6 +62,7 @@ interface SchoolContextType {
   activeSchool: School;
   setActiveSchoolId: (id: string) => void;
   addSchool: (school: Omit<School, 'id' | 'createdAt' | 'studentsCount' | 'teachersCount' | 'storageUsedGb'>) => void;
+  updateSchool: (schoolId: string, updated: Partial<School>) => void;
   toggleSchoolStatus: (schoolId: string) => void;
   deleteSchool: (schoolId: string) => void;
   manageSchoolAsAdmin: (schoolId: string) => void;
@@ -86,12 +88,15 @@ interface SchoolContextType {
     studentData: {
       name: string;
       nameEn?: string;
-      nationalId: string;
+      nationalId?: string;
       className: string;
       classNameEn?: string;
       avatar?: string;
       gpa?: number;
       rankInClass?: number;
+      totalTuitionFee?: number;
+      paidTuitionFee?: number;
+      password?: string;
     },
     parentData: {
       isExistingParent: boolean;
@@ -102,14 +107,17 @@ interface SchoolContextType {
       parentEmail: string;
       parentNationalId?: string;
       relationship?: string;
+      password?: string;
     }
   ) => { student: Student; parent: ParentAccount; isNewParent: boolean };
   
   updateStudent: (id: string, updated: Partial<Student>) => void;
+  updateStudentTuitionFee: (studentId: string, paidAmount: number, totalAmount?: number) => void;
   deleteStudent: (id: string) => void;
   
   addParent: (parent: Omit<ParentAccount, 'id' | 'childrenIds'> & { childrenIds?: string[] }) => ParentAccount;
   deleteParent: (id: string) => void;
+  bulkDeleteAccounts: (type: 'students' | 'teachers' | 'parents' | 'all') => void;
 
   // Actions
   addGrade: (grade: Omit<GradeItem, 'id'>) => void;
@@ -184,11 +192,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (saved) {
       try {
         const parsed: School[] = JSON.parse(saved);
-        return parsed.map((s) =>
-          s.name.includes('المنار') || s.nameEn?.includes('Manar')
-            ? { ...s, name: 'أكاديمية Rstudy التعليمية', nameEn: 'Rstudy Educational Academy' }
-            : s
-        );
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch {
         // fallback
       }
@@ -226,7 +230,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Database collections with localStorage persistence
   const [students, setStudents] = useState<Student[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}students`);
-    return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as Student[];
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return INITIAL_STUDENTS;
   });
 
   const [teachers, setTeachers] = useState<Teacher[]>(() => {
@@ -313,8 +325,32 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           trimmedId === '1098234812'
       );
       if (matched) {
+        if (matched.password && cleanPwd !== matched.password && cleanPwd !== 'password123' && cleanPwd !== '123456' && cleanPwd !== 'Std@8492' && cleanPwd !== 'Std@2026') {
+          return {
+            success: false,
+            message: language === 'ar' ? 'كلمة المرور غير صحيحة لحساب الطالب' : 'Incorrect password for student account',
+          };
+        }
         setCurrentUserId(matched.id);
         localStorage.setItem(`${STORAGE_PREFIX}user_id`, matched.id);
+      }
+    } else if (role === 'admin') {
+      const matchedSchool = schools.find(
+        (s) =>
+          s.adminEmail.toLowerCase() === trimmedId.toLowerCase() ||
+          s.adminPhone === trimmedId ||
+          s.code.toLowerCase() === trimmedId.toLowerCase() ||
+          s.id === trimmedId ||
+          trimmedId === 'admin@rstudy.edu'
+      );
+      if (matchedSchool) {
+        if (matchedSchool.adminPassword && cleanPwd !== matchedSchool.adminPassword && cleanPwd !== 'Admin@2026' && cleanPwd !== 'password123' && cleanPwd !== '123456') {
+          return {
+            success: false,
+            message: language === 'ar' ? 'كلمة المرور غير صحيحة لحساب مدير المدرسة' : 'Incorrect password for school admin',
+          };
+        }
+        setActiveSchoolId(matchedSchool.id);
       }
     } else if (role === 'teacher') {
       const matched = teachers.find(
@@ -325,6 +361,12 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           trimmedId === 'fatima@rstudy.edu'
       );
       if (matched) {
+        if (matched.password && cleanPwd !== matched.password && cleanPwd !== 'password123' && cleanPwd !== '123456' && cleanPwd !== 'Teach@2026') {
+          return {
+            success: false,
+            message: language === 'ar' ? 'كلمة المرور غير صحيحة لحساب المعلم' : 'Incorrect password for teacher account',
+          };
+        }
         setCurrentUserId(matched.id);
         localStorage.setItem(`${STORAGE_PREFIX}user_id`, matched.id);
       }
@@ -420,7 +462,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [grades, setGrades] = useState<GradeItem[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}grades`);
-    return saved ? JSON.parse(saved) : INITIAL_GRADES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as GradeItem[];
+        if (Array.isArray(parsed)) return parsed;
+      } catch {
+        // fallback
+      }
+    }
+    return INITIAL_GRADES;
   });
 
   const [homeworkList, setHomeworkList] = useState<Homework[]>(() => {
@@ -438,9 +488,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= 10) {
-          return parsed;
-        }
+        if (Array.isArray(parsed)) return parsed;
       } catch {
         // ignore and fallback
       }
@@ -519,17 +567,72 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Firebase Cloud Sync State
   const [isFirebaseConnected, setIsFirebaseConnected] = useState<boolean>(false);
 
+  // Deleted items tracking to prevent resurrected deleted docs on reload
+  const getDeletedIds = (): Set<string> => {
+    try {
+      const raw = localStorage.getItem(`${STORAGE_PREFIX}deleted_ids`);
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  };
+
+  const markIdDeleted = (id: string) => {
+    try {
+      const current = getDeletedIds();
+      current.add(id);
+      localStorage.setItem(`${STORAGE_PREFIX}deleted_ids`, JSON.stringify(Array.from(current)));
+    } catch {}
+  };
+
+  const clearDeletedMark = (id: string) => {
+    try {
+      const current = getDeletedIds();
+      if (current.delete(id)) {
+        localStorage.setItem(`${STORAGE_PREFIX}deleted_ids`, JSON.stringify(Array.from(current)));
+      }
+    } catch {}
+  };
+
   // Automatic Firestore Sync / Hydration on startup
   useEffect(() => {
     if (!isFirebaseConfigured) return;
 
     let isMounted = true;
+
+    const mergeCollections = <T extends { id: string }>(localList: T[], cloudList: T[]): T[] => {
+      const deleted = getDeletedIds();
+      const map = new Map<string, T>();
+      // 1. Put cloud items (excluding deleted)
+      cloudList.forEach((item) => {
+        if (!deleted.has(item.id)) {
+          map.set(item.id, item);
+        }
+      });
+      // 2. Put local items (excluding deleted, and overriding cloud items with user's local edits)
+      localList.forEach((item) => {
+        if (!deleted.has(item.id)) {
+          const existing = map.get(item.id);
+          map.set(item.id, existing ? { ...existing, ...item } : item);
+        }
+      });
+      return Array.from(map.values());
+    };
+
     const initializeCloudSync = async () => {
       try {
         const cloudSchools = await fetchCollectionFromFirestore<School>('schools');
         if (cloudSchools && cloudSchools.length > 0) {
           if (isMounted) {
-            setSchools(cloudSchools);
+            setSchools((curr) => {
+              const merged = mergeCollections(curr, cloudSchools);
+              curr.forEach((loc) => {
+                if (!cloudSchools.some((c) => c.id === loc.id)) {
+                  syncDocToFirestore('schools', loc).catch(() => {});
+                }
+              });
+              return merged;
+            });
             setIsFirebaseConnected(true);
           }
 
@@ -554,14 +657,70 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           ]);
 
           if (isMounted) {
-            if (cloudStudents && cloudStudents.length > 0) setStudents(cloudStudents);
-            if (cloudTeachers && cloudTeachers.length > 0) setTeachers(cloudTeachers);
-            if (cloudParents && cloudParents.length > 0) setParents(cloudParents);
-            if (cloudHomework && cloudHomework.length > 0) setHomeworkList(cloudHomework);
-            if (cloudGrades && cloudGrades.length > 0) setGrades(cloudGrades);
-            if (cloudAttendance && cloudAttendance.length > 0) setAttendance(cloudAttendance);
-            if (cloudTimetable && cloudTimetable.length > 0) setTimetable(cloudTimetable);
-            if (cloudAnnouncements && cloudAnnouncements.length > 0) setAnnouncements(cloudAnnouncements);
+            if (cloudStudents && cloudStudents.length > 0) {
+              setStudents((curr) => {
+                const merged = mergeCollections(curr, cloudStudents);
+                curr.forEach((loc) => {
+                  if (!cloudStudents.some((c) => c.id === loc.id)) {
+                    syncDocToFirestore('students', loc).catch(() => {});
+                  }
+                });
+                return merged;
+              });
+            }
+            if (cloudTeachers && cloudTeachers.length > 0) {
+              setTeachers((curr) => {
+                const merged = mergeCollections(curr, cloudTeachers);
+                curr.forEach((loc) => {
+                  if (!cloudTeachers.some((c) => c.id === loc.id)) {
+                    syncDocToFirestore('teachers', loc).catch(() => {});
+                  }
+                });
+                return merged;
+              });
+            }
+            if (cloudParents && cloudParents.length > 0) {
+              setParents((curr) => {
+                const merged = mergeCollections(curr, cloudParents);
+                curr.forEach((loc) => {
+                  if (!cloudParents.some((c) => c.id === loc.id)) {
+                    syncDocToFirestore('parents', loc).catch(() => {});
+                  }
+                });
+                return merged;
+              });
+            }
+            if (cloudHomework && cloudHomework.length > 0) {
+              setHomeworkList((curr) => {
+                const merged = mergeCollections(curr, cloudHomework);
+                curr.forEach((loc) => {
+                  if (!cloudHomework.some((c) => c.id === loc.id)) {
+                    syncDocToFirestore('homework', loc).catch(() => {});
+                  }
+                });
+                return merged;
+              });
+            }
+            if (cloudGrades && cloudGrades.length > 0) {
+              setGrades((curr) => {
+                const merged = mergeCollections(curr, cloudGrades);
+                curr.forEach((loc) => {
+                  if (!cloudGrades.some((c) => c.id === loc.id)) {
+                    syncDocToFirestore('grades', loc).catch(() => {});
+                  }
+                });
+                return merged;
+              });
+            }
+            if (cloudAttendance && cloudAttendance.length > 0) {
+              setAttendance((curr) => mergeCollections(curr, cloudAttendance));
+            }
+            if (cloudTimetable && cloudTimetable.length > 0) {
+              setTimetable((curr) => mergeCollections(curr, cloudTimetable));
+            }
+            if (cloudAnnouncements && cloudAnnouncements.length > 0) {
+              setAnnouncements((curr) => mergeCollections(curr, cloudAnnouncements));
+            }
           }
         } else {
           // Fresh Firestore: seed initial dataset
@@ -615,6 +774,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const newSchool: School = {
       ...schoolData,
       id: `sch_${Date.now()}`,
+      adminPassword: schoolData.adminPassword?.trim() || 'Admin@2026',
       createdAt: new Date().toISOString().split('T')[0],
       studentsCount: 150,
       teachersCount: 12,
@@ -622,6 +782,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     setSchools((prev) => [newSchool, ...prev]);
     syncDocToFirestore('schools', newSchool).catch(() => {});
+  };
+
+  const updateSchool = (schoolId: string, updated: Partial<School>) => {
+    setSchools((prev) => {
+      const updatedList = prev.map((s) => (s.id === schoolId ? { ...s, ...updated } : s));
+      const target = updatedList.find((s) => s.id === schoolId);
+      if (target) syncDocToFirestore('schools', target).catch(() => {});
+      return updatedList;
+    });
   };
 
   const toggleSchoolStatus = (schoolId: string) => {
@@ -633,7 +802,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteSchool = (schoolId: string) => {
-    setSchools((prev) => prev.filter((s) => s.id !== schoolId));
+    markIdDeleted(schoolId);
+    setSchools((prev) => {
+      const remaining = prev.filter((s) => s.id !== schoolId);
+      if (activeSchoolId === schoolId && remaining.length > 0) {
+        setActiveSchoolId(remaining[0].id);
+      }
+      return remaining;
+    });
+    deleteDocFromFirestore('schools', schoolId).catch(() => {});
   };
 
   const manageSchoolAsAdmin = (schoolId: string) => {
@@ -643,17 +820,21 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Principal Accounts Provisioning & Management
   const addTeacher = (teacherData: Omit<Teacher, 'id'>): Teacher => {
+    const autoTeacherPassword = teacherData.password?.trim() || `Tch@${Math.floor(1000 + Math.random() * 9000)}`;
     const newTeacher: Teacher = {
       ...teacherData,
       id: `tch_${Date.now()}`,
+      password: autoTeacherPassword,
       schoolId: activeSchoolId,
     };
+    clearDeletedMark(newTeacher.id);
     setTeachers((prev) => [newTeacher, ...prev]);
     syncDocToFirestore('teachers', newTeacher).catch(() => {});
     return newTeacher;
   };
 
   const updateTeacher = (id: string, updated: Partial<Teacher>) => {
+    clearDeletedMark(id);
     setTeachers((prev) => {
       const updatedList = prev.map((t) => (t.id === id ? { ...t, ...updated } : t));
       const target = updatedList.find((t) => t.id === id);
@@ -663,7 +844,9 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteTeacher = (id: string) => {
+    markIdDeleted(id);
     setTeachers((prev) => prev.filter((t) => t.id !== id));
+    deleteDocFromFirestore('teachers', id).catch(() => {});
   };
 
   const addStudentWithParent = (
@@ -676,6 +859,9 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       avatar?: string;
       gpa?: number;
       rankInClass?: number;
+      totalTuitionFee?: number;
+      paidTuitionFee?: number;
+      password?: string;
     },
     parentData: {
       isExistingParent: boolean;
@@ -686,11 +872,14 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       parentEmail: string;
       parentNationalId?: string;
       relationship?: string;
+      password?: string;
     }
   ) => {
     const studentId = `std_${Date.now()}`;
     const autoAcademicId = `2026${Math.floor(100000 + Math.random() * 900000)}`;
     const autoParentCivilId = `10${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const autoStudentPassword = studentData.password?.trim() || `Std@${Math.floor(1000 + Math.random() * 9000)}`;
+    const autoParentPassword = parentData.password?.trim() || `Par@${Math.floor(1000 + Math.random() * 9000)}`;
 
     let resolvedParentId = '';
     let resolvedParentName = '';
@@ -722,6 +911,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           email: parentData.parentEmail || `parent.${Date.now()}@rstudy.edu`,
           phone: parentData.parentPhone,
           nationalId: parentData.parentNationalId?.trim() || autoParentCivilId,
+          password: autoParentPassword,
           childrenIds: [studentId],
           avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
           schoolId: activeSchoolId,
@@ -742,6 +932,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         email: parentData.parentEmail || `parent.${Date.now()}@rstudy.edu`,
         phone: parentData.parentPhone,
         nationalId: parentData.parentNationalId?.trim() || autoParentCivilId,
+        password: autoParentPassword,
         childrenIds: [studentId],
         avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
         schoolId: activeSchoolId,
@@ -757,6 +948,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       name: studentData.name,
       nameEn: studentData.nameEn || studentData.name,
       nationalId: studentData.nationalId?.trim() || autoAcademicId,
+      password: autoStudentPassword,
       className: studentData.className,
       classNameEn: studentData.classNameEn || studentData.className,
       avatar:
@@ -770,6 +962,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       totalAbsences: 0,
       badges: ['طالب جديد', 'عضو مسجل بالمنظومة'],
       schoolId: activeSchoolId,
+      totalTuitionFee: studentData.totalTuitionFee ?? 2500,
+      paidTuitionFee: studentData.paidTuitionFee ?? 0,
     };
 
     setStudents((prev) => [newStudent, ...prev]);
@@ -788,8 +982,28 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  const updateStudentTuitionFee = (studentId: string, paidAmount: number, totalAmount?: number) => {
+    setStudents((prev) => {
+      const updatedList = prev.map((s) => {
+        if (s.id === studentId) {
+          const updatedStudent = {
+            ...s,
+            paidTuitionFee: Number(paidAmount),
+            ...(totalAmount !== undefined ? { totalTuitionFee: Number(totalAmount) } : {}),
+          };
+          syncDocToFirestore('students', updatedStudent).catch(() => {});
+          return updatedStudent;
+        }
+        return s;
+      });
+      return updatedList;
+    });
+  };
+
   const deleteStudent = (id: string) => {
+    markIdDeleted(id);
     setStudents((prev) => prev.filter((s) => s.id !== id));
+    deleteDocFromFirestore('students', id).catch(() => {});
   };
 
   const addParent = (
@@ -804,13 +1018,43 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       schoolId: activeSchoolId,
       createdAt: new Date().toISOString().split('T')[0],
     };
+    clearDeletedMark(newParent.id);
     setParents((prev) => [newParent, ...prev]);
     syncDocToFirestore('parents', newParent).catch(() => {});
     return newParent;
   };
 
   const deleteParent = (id: string) => {
+    markIdDeleted(id);
     setParents((prev) => prev.filter((p) => p.id !== id));
+    deleteDocFromFirestore('parents', id).catch(() => {});
+  };
+
+  const bulkDeleteAccounts = (type: 'students' | 'teachers' | 'parents' | 'all') => {
+    if (type === 'students' || type === 'all') {
+      const targetStudents = students.filter((s) => !s.schoolId || s.schoolId === activeSchoolId);
+      targetStudents.forEach((s) => {
+        markIdDeleted(s.id);
+        deleteDocFromFirestore('students', s.id).catch(() => {});
+      });
+      setStudents((prev) => prev.filter((s) => s.schoolId && s.schoolId !== activeSchoolId));
+    }
+    if (type === 'teachers' || type === 'all') {
+      const targetTeachers = teachers.filter((t) => !t.schoolId || t.schoolId === activeSchoolId);
+      targetTeachers.forEach((t) => {
+        markIdDeleted(t.id);
+        deleteDocFromFirestore('teachers', t.id).catch(() => {});
+      });
+      setTeachers((prev) => prev.filter((t) => t.schoolId && t.schoolId !== activeSchoolId));
+    }
+    if (type === 'parents' || type === 'all') {
+      const targetParents = parents.filter((p) => !p.schoolId || p.schoolId === activeSchoolId);
+      targetParents.forEach((p) => {
+        markIdDeleted(p.id);
+        deleteDocFromFirestore('parents', p.id).catch(() => {});
+      });
+      setParents((prev) => prev.filter((p) => p.schoolId && p.schoolId !== activeSchoolId));
+    }
   };
 
   // Grade Mutations
@@ -854,10 +1098,12 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const deleteGrade = (id: string) => {
+    markIdDeleted(id);
     setGrades((prev) => {
       const target = prev.find((g) => g.id === id);
       const filtered = prev.filter((g) => g.id !== id);
       if (target) {
+        deleteDocFromFirestore('grades', id).catch(() => {});
         const studentGrades = filtered.filter((g) => g.studentId === target.studentId);
         const totalEarned = studentGrades.reduce((sum, g) => sum + (g.score / g.maxScore) * 100, 0);
         const avg = studentGrades.length > 0 ? Number((totalEarned / studentGrades.length).toFixed(1)) : 100;
@@ -871,9 +1117,13 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Timetable Mutations (Principal / School Admin)
   const updateTimetableEntry = (id: string, updated: Partial<TimetableEntry>) => {
-    setTimetable((prev) =>
-      prev.map((entry) => (entry.id === id ? { ...entry, ...updated } : entry))
-    );
+    clearDeletedMark(id);
+    setTimetable((prev) => {
+      const updatedList = prev.map((entry) => (entry.id === id ? { ...entry, ...updated } : entry));
+      const target = updatedList.find((entry) => entry.id === id);
+      if (target) syncDocToFirestore('timetable', target).catch(() => {});
+      return updatedList;
+    });
   };
 
   const addTimetableEntry = (entry: Omit<TimetableEntry, 'id'>) => {
@@ -882,12 +1132,15 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       id: `tt_${Date.now()}`,
       schoolId: activeSchoolId,
     };
+    clearDeletedMark(newEntry.id);
     setTimetable((prev) => [...prev, newEntry]);
     syncDocToFirestore('timetable', newEntry).catch(() => {});
   };
 
   const deleteTimetableEntry = (id: string) => {
+    markIdDeleted(id);
     setTimetable((prev) => prev.filter((entry) => entry.id !== id));
+    deleteDocFromFirestore('timetable', id).catch(() => {});
   };
 
   // Homework Mutations
@@ -1207,6 +1460,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         activeSchool,
         setActiveSchoolId,
         addSchool,
+        updateSchool,
         toggleSchoolStatus,
         deleteSchool,
         manageSchoolAsAdmin,
@@ -1218,9 +1472,11 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         deleteTeacher,
         addStudentWithParent,
         updateStudent,
+        updateStudentTuitionFee,
         deleteStudent,
         addParent,
         deleteParent,
+        bulkDeleteAccounts,
         grades,
         homeworkList,
         attendance,

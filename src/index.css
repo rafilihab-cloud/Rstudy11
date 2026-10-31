@@ -29,13 +29,73 @@
 }
 
 @media print {
-  body {
-    background: white !important;
-    color: black !important;
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
   }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+  }
+
+  /* Hide background application layout and navigation */
+  header,
+  nav,
+  main,
+  footer,
+  aside,
   .no-print {
     display: none !important;
   }
+
+  /* Overlay becomes static full-width container on printed page */
+  .certificate-print-overlay {
+    position: static !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    overflow: visible !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .certificate-print-card {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
+  .certificate-document-frame {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 16px 20px !important;
+    border: 3px double #1e3a8a !important;
+    border-radius: 12px !important;
+    background: #ffffff !important;
+    box-sizing: border-box !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
   .print-only {
     display: block !important;
   }
@@ -49,3 +109,28 @@
 .animate-pulse-subtle {
   animation: pulseSubtle 3s infinite ease-in-out;
 }
+
+/* Custom smooth thin scrollbar for horizontal draggable strips on PC/Desktop */
+.draggable-scroll-container {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.draggable-scroll-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.draggable-scroll-container::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.6);
+  border-radius: 9999px;
+}
+
+.draggable-scroll-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+.draggable-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+

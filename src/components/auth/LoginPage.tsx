@@ -217,10 +217,6 @@ export const LoginPage: React.FC = () => {
         <div className="w-full bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
           {/* Header Strip inside card */}
           <div className="bg-slate-50 border-b border-slate-100 p-5 sm:p-6 text-center">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 mb-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{t('allPlatformsBadge')}</span>
-            </span>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
               {t('loginTitle')}
             </h2>
@@ -458,8 +454,6 @@ export const LoginPage: React.FC = () => {
       <footer className="max-w-6xl w-full mx-auto text-center py-4 text-xs text-slate-400">
         <p className="flex items-center justify-center gap-2 flex-wrap">
           <span>© 2026 Rstudy</span>
-          <span>•</span>
-          <span>{t('allPlatformsBadge')}</span>
           <span>•</span>
           <button
             onClick={() => setShowForgotModal(true)}

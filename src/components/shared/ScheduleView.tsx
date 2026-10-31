@@ -21,6 +21,7 @@ import {
   Compass,
   AlertCircle,
 } from 'lucide-react';
+import { DraggableScrollContainer } from './DraggableScrollContainer';
 
 export const ScheduleView: React.FC = () => {
   const {
@@ -281,37 +282,39 @@ export const ScheduleView: React.FC = () => {
 
       {/* DAYS NAVIGATION & VIEW MODE TOGGLE */}
       <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {/* Days Tabs with "Today" indicator */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-          {daysArabic.map((dayAr, index) => {
-            const isSelected = selectedDayIndex === index;
-            const isToday = index === todayIndex;
-            return (
-              <button
-                key={dayAr}
-                onClick={() => setSelectedDayIndex(index)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
-                  isSelected
-                    ? currentRole === 'teacher'
-                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
-                      : 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
-                    : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/70'
-                }`}
-              >
-                <span>{language === 'ar' ? `يوم ${dayAr}` : daysEnglish[index]}</span>
-                {isToday && (
-                  <span
-                    className={`text-[9px] font-black px-1.5 py-0.2 rounded-md ${
-                      isSelected ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-800'
-                    }`}
-                  >
-                    {language === 'ar' ? 'اليوم' : 'Today'}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        {/* Days Tabs with "Today" indicator (Draggable on PC & Mobile) */}
+        <DraggableScrollContainer className="pb-1 sm:pb-0" wrapperClassName="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 whitespace-nowrap px-2 py-0.5 min-w-max">
+            {daysArabic.map((dayAr, index) => {
+              const isSelected = selectedDayIndex === index;
+              const isToday = index === todayIndex;
+              return (
+                <button
+                  key={dayAr}
+                  onClick={() => setSelectedDayIndex(index)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all shrink-0 ${
+                    isSelected
+                      ? currentRole === 'teacher'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+                        : 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                      : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/70'
+                  }`}
+                >
+                  <span>{language === 'ar' ? `يوم ${dayAr}` : daysEnglish[index]}</span>
+                  {isToday && (
+                    <span
+                      className={`text-[9px] font-black px-1.5 py-0.2 rounded-md ${
+                        isSelected ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-800'
+                      }`}
+                    >
+                      {language === 'ar' ? 'اليوم' : 'Today'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </DraggableScrollContainer>
 
         {/* View Mode Toggle: [My Classes Only] vs [All School Schedule] */}
         {currentRole !== 'admin' && currentRole !== 'super_admin' && (

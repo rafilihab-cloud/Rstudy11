@@ -71,15 +71,25 @@ export const Navbar: React.FC<Props> = ({
             className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0 select-none"
             onClick={() => setActiveTab('dashboard')}
           >
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-blue-700 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-black text-xl shadow-md shadow-blue-500/20 ring-2 ring-white/60 shrink-0">
-              <span>R</span>
-            </div>
+            {currentRole !== 'super_admin' && activeSchool?.logo ? (
+              <div className="relative shrink-0">
+                <img
+                  src={activeSchool.logo}
+                  alt={activeSchool.name}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover ring-2 ring-blue-500/20 shadow-xs border border-slate-200"
+                />
+              </div>
+            ) : (
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-blue-700 via-indigo-600 to-sky-500 text-white flex items-center justify-center font-black text-xl shadow-md shadow-blue-500/20 ring-2 ring-white/60 shrink-0">
+                <span>R</span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="font-black text-blue-700 text-lg sm:text-xl tracking-tight font-sans">
                 Rstudy
               </span>
               <span className="text-slate-300 font-light hidden xs:inline">|</span>
-              <span className="text-slate-800 text-xs sm:text-sm font-bold truncate max-w-[110px] sm:max-w-[170px] md:max-w-[210px] hidden xs:inline">
+              <span className="text-slate-800 text-xs sm:text-sm font-bold truncate max-w-[120px] sm:max-w-[190px] md:max-w-[240px] hidden xs:inline">
                 {currentRole === 'super_admin'
                   ? language === 'ar'
                     ? 'بوابة المالك'
@@ -91,12 +101,6 @@ export const Navbar: React.FC<Props> = ({
               <span className="hidden lg:inline-flex items-center px-1.5 py-0.2 text-[10px] font-black bg-blue-50 text-blue-700 rounded-md border border-blue-200/60">
                 {t('pwaBadge')}
               </span>
-              {isFirebaseConnected && (
-                <span className="hidden xl:inline-flex items-center gap-1 px-1.5 py-0.2 text-[10px] font-black bg-emerald-50 text-emerald-700 rounded-md border border-emerald-200/60">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Firebase Live
-                </span>
-              )}
             </div>
           </div>
 

@@ -20,15 +20,21 @@ import {
   X,
   Users,
   Bell,
+  Pencil,
+  Lock,
+  Save,
 } from 'lucide-react';
 import { ScheduleView } from '../shared/ScheduleView';
+import { DraggableScrollContainer } from '../shared/DraggableScrollContainer';
 
 export const TeacherDashboard: React.FC = () => {
   const {
     currentUser,
     students,
+    teachers,
     grades,
     addGrade,
+    updateGrade,
     deleteGrade,
     homeworkList,
     addHomework,
@@ -131,30 +137,71 @@ export const TeacherDashboard: React.FC = () => {
     setTimeout(() => setAttendanceSavedToast(false), 3500);
   };
 
+  // --- Teacher Subject Authorization & Permissions ---
+  const activeTeacher =
+    teachers.find(
+      (t) =>
+        t.id === currentUser.id ||
+        (t.email && currentUser.email && t.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+        t.name === currentUser.name
+    ) || teachers[0];
+
+  const authorizedSubject =
+    activeTeacher?.subject || currentUser.assignedSubjects?.[0] || 'الرياضيات';
+
+  const authorizedSubjects: string[] = Array.from(
+    new Set([activeTeacher?.subject, ...(currentUser.assignedSubjects || [])].filter(Boolean))
+  ) as string[];
+
+  // Verification helper: check if grade is strictly within this teacher's specialty
+  const isGradeAuthorizedForTeacher = (grade: GradeItem) => {
+    if (!grade) return false;
+    const matchSubject =
+      grade.subject === authorizedSubject ||
+      authorizedSubjects.includes(grade.subject) ||
+      (authorizedSubject && grade.subject.toLowerCase().includes(authorizedSubject.toLowerCase())) ||
+      (authorizedSubject && authorizedSubject.toLowerCase().includes(grade.subject.toLowerCase()));
+    const matchAuthor = grade.gradedBy === currentUser.name;
+    return Boolean(matchSubject || matchAuthor);
+  };
+
   // --- Grades Publishing State ---
   const [isGradeModalOpen, setIsGradeModalOpen] = useState(false);
   const [gradeStudentId, setGradeStudentId] = useState(classStudents[0]?.id || 'std_1');
-  const [gradeSubject, setGradeSubject] = useState('الرياضيات');
   const [gradeExamType, setGradeExamType] = useState<GradeItem['examType']>('اختبار نصفي');
+  const [gradeTerm, setGradeTerm] = useState<'النصف الأول' | 'النصف الثاني'>('النصف الأول');
+  const [gradeTermFilter, setGradeTermFilter] = useState<'all' | 'first' | 'second'>('all');
+  const [teacherGradesScopeFilter, setTeacherGradesScopeFilter] = useState<'my_subject' | 'all'>('my_subject');
   const [gradeScore, setGradeScore] = useState<number>(18);
   const [gradeMaxScore, setGradeMaxScore] = useState<number>(20);
   const [gradeFeedback, setGradeFeedback] = useState('');
   const [gradeSearch, setGradeSearch] = useState('');
+
+  // --- Grade Editing State & Modal for Teachers ---
+  const [editingGrade, setEditingGrade] = useState<GradeItem | null>(null);
+  const [editScore, setEditScore] = useState<number>(0);
+  const [editMaxScore, setEditMaxScore] = useState<number>(20);
+  const [editExamType, setEditExamType] = useState<GradeItem['examType']>('اختبار نصفي');
+  const [editTerm, setEditTerm] = useState<'النصف الأول' | 'النصف الثاني'>('النصف الأول');
+  const [editFeedback, setEditFeedback] = useState<string>('');
 
   const handlePublishGrade = (e: React.FormEvent) => {
     e.preventDefault();
     const student = students.find((s) => s.id === gradeStudentId);
     if (!student) return;
 
+    // Strictly enforce the teacher's authorized subject
     addGrade({
       studentId: student.id,
       studentName: student.name,
       className: student.className,
-      subject: gradeSubject,
+      subject: authorizedSubject,
+      subjectEn: activeTeacher?.subjectEn || authorizedSubject,
       examType: gradeExamType,
       score: Number(gradeScore),
       maxScore: Number(gradeMaxScore),
-      term: 'الفصل الأول',
+      term: gradeTerm,
+      semester: gradeTerm === 'النصف الثاني' ? 'second' : 'first',
       date: new Date().toISOString().split('T')[0],
       feedback: gradeFeedback,
       gradedBy: currentUser.name,
@@ -162,6 +209,48 @@ export const TeacherDashboard: React.FC = () => {
 
     setIsGradeModalOpen(false);
     setGradeFeedback('');
+  };
+
+  const handleSaveEditGrade = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGrade) return;
+
+    // Verify authority
+    if (!isGradeAuthorizedForTeacher(editingGrade)) {
+      alert(
+        language === 'ar'
+          ? `غير مصرح لك بتعديل درجات مادة (${editingGrade.subject}). تقتصر صلاحيتك التدريسية على مادة (${authorizedSubject}) فقط.`
+          : `Unauthorized: You can only edit grades for your assigned subject (${authorizedSubject}).`
+      );
+      return;
+    }
+
+    updateGrade(editingGrade.id, {
+      score: Number(editScore),
+      maxScore: Number(editMaxScore),
+      examType: editExamType,
+      term: editTerm,
+      semester: editTerm === 'النصف الثاني' ? 'second' : 'first',
+      feedback: editFeedback,
+      date: new Date().toISOString().split('T')[0],
+    });
+
+    setEditingGrade(null);
+  };
+
+  const handleDeleteGradeSafe = (item: GradeItem) => {
+    if (!isGradeAuthorizedForTeacher(item)) {
+      alert(
+        language === 'ar'
+          ? `غير مصرح لك بحذف درجات مادة (${item.subject}). تقتصر صلاحيتك على مادة (${authorizedSubject}) فقط.`
+          : `Unauthorized: You can only delete grades for your assigned subject (${authorizedSubject}).`
+      );
+      return;
+    }
+
+    if (window.confirm(language === 'ar' ? 'هل أنت متأكد من حذف هذه الدرجة؟' : 'Delete this grade?')) {
+      deleteGrade(item.id);
+    }
   };
 
   // --- Homework Management State with File/Photo Attachments ---
@@ -371,56 +460,58 @@ export const TeacherDashboard: React.FC = () => {
         </button>
       </div>
 
-      {/* Main Tabs Navigation */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto scrollbar-none">
-        <button
-          onClick={() => setActiveSection('schedule')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeSection === 'schedule'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Clock className="w-4 h-4 text-emerald-500" />
-          <span>{language === 'ar' ? 'حصصي اليوم (ما سأعطيه)' : 'Classes I Teach Today'}</span>
-        </button>
+      {/* Main Tabs Navigation (Draggable on PC & Mobile) */}
+      <DraggableScrollContainer className="pb-2" wrapperClassName="border-b border-slate-200">
+        <div className="flex items-center gap-2 px-2 py-1 min-w-max">
+          <button
+            onClick={() => setActiveSection('schedule')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeSection === 'schedule'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-emerald-500" />
+            <span>{language === 'ar' ? 'حصصي اليوم (ما سأعطيه)' : 'Classes I Teach Today'}</span>
+          </button>
 
-        <button
-          onClick={() => setActiveSection('attendance')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeSection === 'attendance'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <CalendarCheck className="w-4 h-4" />
-          <span>{t('recordAttendanceTab')}</span>
-        </button>
+          <button
+            onClick={() => setActiveSection('attendance')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeSection === 'attendance'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <CalendarCheck className="w-4 h-4" />
+            <span>{t('recordAttendanceTab')}</span>
+          </button>
 
-        <button
-          onClick={() => setActiveSection('grades')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeSection === 'grades'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Award className="w-4 h-4" />
-          <span>{t('publishGradesTab')}</span>
-        </button>
+          <button
+            onClick={() => setActiveSection('grades')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeSection === 'grades'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Award className="w-4 h-4" />
+            <span>{t('publishGradesTab')}</span>
+          </button>
 
-        <button
-          onClick={() => setActiveSection('homework')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeSection === 'homework'
-              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <BookOpenCheck className="w-4 h-4" />
-          <span>{t('homeworkTab')}</span>
-        </button>
-      </div>
+          <button
+            onClick={() => setActiveSection('homework')}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeSection === 'homework'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <BookOpenCheck className="w-4 h-4" />
+            <span>{t('homeworkTab')}</span>
+          </button>
+        </div>
+      </DraggableScrollContainer>
 
       {/* SECTION: TODAY'S TEACHING SCHEDULE */}
       {activeSection === 'schedule' && (
@@ -618,25 +709,102 @@ export const TeacherDashboard: React.FC = () => {
       {activeSection === 'grades' && (
         <div className="space-y-4 animate-fadeIn">
           {/* Header & New Grade Button */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={gradeSearch}
-                onChange={(e) => setGradeSearch(e.target.value)}
-                placeholder={t('search')}
-                className="w-full pl-3 pr-9 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={gradeSearch}
+                    onChange={(e) => setGradeSearch(e.target.value)}
+                    placeholder={t('search')}
+                    className="w-full pl-3 pr-9 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                {/* Teacher Subject Restriction Badge */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-black text-emerald-900 shrink-0">
+                  <Lock className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>{language === 'ar' ? 'مادتك التدريسية:' : 'Teaching Subject:'}</span>
+                  <span className="text-emerald-800 underline font-bold">{authorizedSubject}</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsGradeModalOpen(true)}
+                className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition shadow-emerald-500/20 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{t('publishNewGrade')} ({authorizedSubject})</span>
+              </button>
             </div>
 
-            <button
-              onClick={() => setIsGradeModalOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-md transition shadow-emerald-500/20"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{t('publishNewGrade')}</span>
-            </button>
+            {/* Filter Controls: Scope & Semester */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
+              {/* Scope filter: My Subject vs All Subjects */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setTeacherGradesScopeFilter('my_subject')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    teacherGradesScopeFilter === 'my_subject'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {language === 'ar' ? `درجات مادتي فقط (${authorizedSubject})` : `My Subject (${authorizedSubject})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTeacherGradesScopeFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    teacherGradesScopeFilter === 'all'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {language === 'ar' ? 'كافة المواد الدراسية' : 'All Subjects (View)'}
+                </button>
+              </div>
+
+              {/* Semester Filter Tabs */}
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setGradeTermFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    gradeTermFilter === 'all'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {language === 'ar' ? 'كافة الفصول' : 'All Terms'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGradeTermFilter('first')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    gradeTermFilter === 'first'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {language === 'ar' ? 'النصف الأول' : 'Semester 1'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGradeTermFilter('second')}
+                  className={`px-3 py-1.5 rounded-lg transition ${
+                    gradeTermFilter === 'second'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {language === 'ar' ? 'النصف الثاني' : 'Semester 2'}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Grades List Table */}
@@ -647,30 +815,64 @@ export const TeacherDashboard: React.FC = () => {
                   <tr>
                     <th className="py-3 px-4">{t('studentRole')}</th>
                     <th className="py-3 px-4">{t('class')}</th>
+                    <th className="py-3 px-4">{language === 'ar' ? 'الفترة / النصف' : 'Term / Half'}</th>
                     <th className="py-3 px-4">{t('subject')}</th>
                     <th className="py-3 px-4">{t('examType')}</th>
                     <th className="py-3 px-4 text-center">{t('score')}</th>
                     <th className="py-3 px-4 text-center">{t('percentage')}</th>
                     <th className="py-3 px-4">{t('feedback')}</th>
-                    <th className="py-3 px-4 text-center">{t('delete')}</th>
+                    <th className="py-3 px-4 text-center">{language === 'ar' ? 'إجراءات وتعديل الدرجة' : 'Actions'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {grades
-                    .filter(
-                      (g) =>
+                    .filter((g) => {
+                      const matchesSearch =
                         g.studentName.includes(gradeSearch) ||
                         g.subject.includes(gradeSearch) ||
-                        g.examType.includes(gradeSearch as any)
-                    )
+                        g.examType.includes(gradeSearch as any);
+
+                      const isSecond = g.term === 'النصف الثاني' || g.term === 'الفصل الثاني' || g.semester === 'second';
+                      if (gradeTermFilter === 'first' && isSecond) return false;
+                      if (gradeTermFilter === 'second' && !isSecond) return false;
+
+                      if (teacherGradesScopeFilter === 'my_subject' && !isGradeAuthorizedForTeacher(g)) {
+                        return false;
+                      }
+
+                      return matchesSearch;
+                    })
                     .map((item) => {
                       const pct = ((item.score / item.maxScore) * 100).toFixed(0);
+                      const isSecond = item.term === 'النصف الثاني' || item.term === 'الفصل الثاني' || item.semester === 'second';
+                      const canEdit = isGradeAuthorizedForTeacher(item);
+
                       return (
                         <tr key={item.id} className="hover:bg-slate-50/50 transition">
                           <td className="py-3 px-4 font-bold text-slate-900">{item.studentName}</td>
                           <td className="py-3 px-4 text-slate-500">{item.className}</td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${
+                                isSecond
+                                  ? 'bg-purple-50 text-purple-800 border-purple-200'
+                                  : 'bg-blue-50 text-blue-800 border-blue-200'
+                              }`}
+                            >
+                              {isSecond
+                                ? (language === 'ar' ? 'النصف الثاني' : 'Sem 2')
+                                : (language === 'ar' ? 'النصف الأول' : 'Sem 1')}
+                            </span>
+                          </td>
                           <td className="py-3 px-4 font-semibold text-emerald-800">
-                            {language === 'ar' ? item.subject : item.subjectEn || item.subject}
+                            <span className="flex items-center gap-1.5">
+                              {language === 'ar' ? item.subject : item.subjectEn || item.subject}
+                              {canEdit && (
+                                <span className="text-[9px] font-black px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  {language === 'ar' ? 'مادتك' : 'Yours'}
+                                </span>
+                              )}
+                            </span>
                           </td>
                           <td className="py-3 px-4 text-slate-600">{item.examType}</td>
                           <td className="py-3 px-4 text-center font-black text-slate-900 text-sm">
@@ -693,13 +895,50 @@ export const TeacherDashboard: React.FC = () => {
                             {language === 'ar' ? item.feedback : item.feedbackEn || item.feedback || '—'}
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <button
-                              onClick={() => deleteGrade(item.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
-                              title={t('delete')}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {canEdit ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingGrade(item);
+                                    setEditScore(item.score);
+                                    setEditMaxScore(item.maxScore);
+                                    setEditExamType(item.examType);
+                                    setEditTerm(
+                                      item.term === 'النصف الثاني' || item.semester === 'second'
+                                        ? 'النصف الثاني'
+                                        : 'النصف الأول'
+                                    );
+                                    setEditFeedback(item.feedback || '');
+                                  }}
+                                  className="p-1.5 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition flex items-center gap-1 font-bold text-[11px]"
+                                  title={language === 'ar' ? 'تعديل الدرجة' : 'Edit Grade'}
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                  <span>{language === 'ar' ? 'تعديل' : 'Edit'}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteGradeSafe(item)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
+                                  title={t('delete')}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-100 text-slate-400 text-[10px] font-bold border border-slate-200 cursor-not-allowed"
+                                title={
+                                  language === 'ar'
+                                    ? `هذه الدرجة لمادة (${item.subject}) ولا تملك صلاحية تعديلها (صلاحيتك لمادة ${authorizedSubject} فقط)`
+                                    : `Read-only: Restricted to ${authorizedSubject}`
+                                }
+                              >
+                                <Lock className="w-2.5 h-2.5" />
+                                <span>{language === 'ar' ? 'للقراءة فقط' : 'Locked'}</span>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -755,45 +994,47 @@ export const TeacherDashboard: React.FC = () => {
             </button>
           </div>
 
-          {/* Class Filter Bar */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            <button
-              onClick={() => setHwFilterClass('all')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
-                hwFilterClass === 'all'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-              }`}
-            >
-              {t('allClasses')} ({homeworkList.length})
-            </button>
-            {allClasses.map((cls) => {
-              const count = homeworkList.filter((h) => h.className === cls).length;
-              const studentCount = students.filter((s) => s.className === cls).length;
-              return (
-                <button
-                  key={cls}
-                  onClick={() => setHwFilterClass(cls)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
-                    hwFilterClass === cls
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  <span>{cls}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+          {/* Class Filter Bar (Draggable on PC & Mobile) */}
+          <DraggableScrollContainer className="pb-1.5" wrapperClassName="w-full">
+            <div className="flex items-center gap-2 px-3 py-1 min-w-max">
+              <button
+                onClick={() => setHwFilterClass('all')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 ${
+                  hwFilterClass === 'all'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                {t('allClasses')} ({homeworkList.length})
+              </button>
+              {allClasses.map((cls) => {
+                const count = homeworkList.filter((h) => h.className === cls).length;
+                const studentCount = students.filter((s) => s.className === cls).length;
+                return (
+                  <button
+                    key={cls}
+                    onClick={() => setHwFilterClass(cls)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
                       hwFilterClass === cls
-                        ? 'bg-emerald-700 text-white'
-                        : 'bg-slate-100 text-slate-600'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                     }`}
                   >
-                    {count} واجب • {studentCount} طلاب
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                    <span>{cls}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+                        hwFilterClass === cls
+                          ? 'bg-emerald-700 text-white'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {count} واجب • {studentCount} طلاب
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </DraggableScrollContainer>
 
           {/* Homework Cards Grid */}
           {(() => {
@@ -972,20 +1213,52 @@ export const TeacherDashboard: React.FC = () => {
                 </select>
               </div>
 
+              {/* Semester selection: النصف الأول vs النصف الثاني */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  {language === 'ar' ? 'فترة التقييم / نصف السنة:' : 'Semester / Academic Term:'}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGradeTerm('النصف الأول')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                      gradeTerm === 'النصف الأول'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-400/20'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{language === 'ar' ? 'النصف الأول من السنة' : 'Semester 1 (First Half)'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGradeTerm('النصف الثاني')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                      gradeTerm === 'النصف الثاني'
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs ring-2 ring-purple-400/20'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{language === 'ar' ? 'النصف الثاني من السنة' : 'Semester 2 (Second Half)'}</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('subject')}:</label>
-                  <select
-                    value={gradeSubject}
-                    onChange={(e) => setGradeSubject(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-slate-50"
-                  >
-                    <option value="الرياضيات">{t('math')}</option>
-                    <option value="العلوم الطبيعية">{t('science')}</option>
-                    <option value="اللغة الإنجليزية">{t('english')}</option>
-                    <option value="اللغة العربية">{t('arabic')}</option>
-                    <option value="الحاسب والذكاء الاصطناعي">{t('computerScience')}</option>
-                  </select>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">{t('subject')}:</label>
+                    <span className="text-[10px] font-bold text-emerald-800 flex items-center gap-1">
+                      <Lock className="w-2.5 h-2.5" />
+                      {language === 'ar' ? 'مقيد بتخصصك' : 'Authorized'}
+                    </span>
+                  </div>
+                  <div className="px-3 py-2 rounded-xl border border-emerald-300 text-xs font-black bg-emerald-50 text-emerald-950 flex items-center justify-between">
+                    <span>{authorizedSubject}</span>
+                    <span className="text-[10px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.5 rounded font-bold">
+                      {language === 'ar' ? 'مادتك التدريسية' : 'Your Subject'}
+                    </span>
+                  </div>
                 </div>
 
                 <div>
@@ -1046,13 +1319,177 @@ export const TeacherDashboard: React.FC = () => {
               <div className="flex gap-2 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow transition"
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow transition flex items-center justify-center gap-1.5"
                 >
-                  {t('publishNewGrade')}
+                  <Plus className="w-4 h-4" />
+                  <span>{t('publishNewGrade')} ({authorizedSubject})</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsGradeModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
+                >
+                  {t('cancel')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Edit Grade with Authority Restriction */}
+      {editingGrade && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6 border border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div>
+                <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
+                  <Pencil className="w-5 h-5 text-blue-600" />
+                  <span>{language === 'ar' ? 'تعديل الدرجة الأكاديمية' : 'Edit Academic Grade'}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {language === 'ar'
+                    ? 'تعديل درجة الطالب للمادة المصرح لك بتدريسها فقط'
+                    : 'Modify student grade for your authorized teaching subject only'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingGrade(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditGrade} className="space-y-3.5">
+              {/* Student info (read-only) */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 block">{t('studentRole')}:</span>
+                  <span className="font-bold text-slate-900 text-sm">{editingGrade.studentName}</span>
+                </div>
+                <div className="text-left">
+                  <span className="text-[10px] font-bold text-slate-400 block">{t('class')}:</span>
+                  <span className="font-bold text-blue-700 text-xs px-2 py-0.5 bg-blue-50 border border-blue-200 rounded-md">
+                    {editingGrade.className}
+                  </span>
+                </div>
+              </div>
+
+              {/* Subject authorization badge (locked to authorized subject) */}
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-bold text-emerald-800 flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-emerald-600" />
+                    <span>{language === 'ar' ? 'المادة الدراسية (مقيدة بصلاحيتك):' : 'Subject (Locked to Authority):'}</span>
+                  </span>
+                  <span className="font-black text-emerald-950 text-sm block mt-0.5">{editingGrade.subject}</span>
+                </div>
+                <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
+                  {language === 'ar' ? 'صلاحية مؤكدة' : 'Authorized'}
+                </span>
+              </div>
+
+              {/* Semester selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  {language === 'ar' ? 'فترة التقييم / نصف السنة:' : 'Semester / Academic Term:'}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditTerm('النصف الأول')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                      editTerm === 'النصف الأول'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-xs ring-2 ring-blue-400/20'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{language === 'ar' ? 'النصف الأول من السنة' : 'Semester 1 (First Half)'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditTerm('النصف الثاني')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                      editTerm === 'النصف الثاني'
+                        ? 'bg-purple-600 text-white border-purple-600 shadow-xs ring-2 ring-purple-400/20'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span>{language === 'ar' ? 'النصف الثاني من السنة' : 'Semester 2 (Second Half)'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Exam type */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">{t('examType')}:</label>
+                <select
+                  value={editExamType}
+                  onChange={(e) => setEditExamType(e.target.value as GradeItem['examType'])}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-slate-50"
+                >
+                  <option value="اختبار نصفي">{t('midtermExam')}</option>
+                  <option value="اختبار نهائي">{t('finalExam')}</option>
+                  <option value="اختبار قصير">{t('quiz')}</option>
+                  <option value="واجب وتقييم مستمر">{t('continuousEvaluation')}</option>
+                  <option value="مشروع عملي">{t('project')}</option>
+                </select>
+              </div>
+
+              {/* Score and Max Score */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('score')}:</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={editMaxScore}
+                    step="0.5"
+                    value={editScore}
+                    onChange={(e) => setEditScore(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-slate-50"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">{t('maxScore')}:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editMaxScore}
+                    onChange={(e) => setEditMaxScore(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold bg-slate-50"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Feedback */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">{t('feedback')}:</label>
+                <textarea
+                  rows={2}
+                  value={editFeedback}
+                  onChange={(e) => setEditFeedback(e.target.value)}
+                  placeholder="ملاحظات المعلم وتوجيهه..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-slate-50 focus:bg-white"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow transition flex items-center justify-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{language === 'ar' ? 'حفظ تعديلات الدرجة' : 'Save Grade Changes'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingGrade(null)}
                   className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition"
                 >
                   {t('cancel')}

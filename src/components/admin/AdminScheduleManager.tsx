@@ -15,6 +15,7 @@ import {
   Sparkles,
   Layers,
 } from 'lucide-react';
+import { DraggableScrollContainer } from '../shared/DraggableScrollContainer';
 
 export const AdminScheduleManager: React.FC = () => {
   const {
@@ -195,24 +196,28 @@ export const AdminScheduleManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Days Tabs */}
-      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-2 overflow-x-auto scrollbar-none">
-        {daysArabic.map((dayAr, index) => {
-          const isSelected = selectedDayIndex === index;
-          return (
-            <button
-              key={dayAr}
-              onClick={() => setSelectedDayIndex(index)}
-              className={`flex-1 min-w-[100px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-black transition-all text-center ${
-                isSelected
-                  ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
-                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
-              }`}
-            >
-              {language === 'ar' ? `يوم ${dayAr}` : daysEnglish[index]}
-            </button>
-          );
-        })}
+      {/* Days Tabs (Draggable on PC & Mobile) */}
+      <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
+        <DraggableScrollContainer className="py-0.5" wrapperClassName="w-full">
+          <div className="flex items-center gap-2 px-2 py-0.5 min-w-max">
+            {daysArabic.map((dayAr, index) => {
+              const isSelected = selectedDayIndex === index;
+              return (
+                <button
+                  key={dayAr}
+                  onClick={() => setSelectedDayIndex(index)}
+                  className={`flex-1 min-w-[110px] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-black transition-all text-center shrink-0 ${
+                    isSelected
+                      ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
+                      : 'bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
+                  }`}
+                >
+                  {language === 'ar' ? `يوم ${dayAr}` : daysEnglish[index]}
+                </button>
+              );
+            })}
+          </div>
+        </DraggableScrollContainer>
       </div>
 
       {/* Timetable Period Cards for Active Day */}

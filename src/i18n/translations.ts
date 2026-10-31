@@ -207,7 +207,7 @@ export const translations = {
 
     // Admin Section
     adminWelcome: 'لوحة القيادة الإدارية',
-    enrolledStudents: 'الطلاب المقيدون',
+    enrolledStudents: 'الطلاب المسجلون',
     teachingStaff: 'الكادر التعليمي',
     todayAttendanceRate: 'نسبة حضور اليوم',
     pendingExcuses: 'طلبات أعذار معلقة',

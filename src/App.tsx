@@ -132,12 +132,6 @@ const MainAppContent: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3 text-slate-500 font-semibold">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/70 text-[11px] font-bold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              {isFirebaseConnected
-                ? (language === 'ar' ? 'متصل سحابياً (Firebase Live)' : 'Firebase Cloud Live')
-                : t('onlineSync')}
-            </span>
             <button
               onClick={() => setIsHonorRollOpen(true)}
               className="text-amber-700 hover:text-amber-800 font-bold flex items-center gap-1"

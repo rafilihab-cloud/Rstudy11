@@ -18,6 +18,7 @@ import {
   Pencil,
   UserPlus,
 } from 'lucide-react';
+import { DraggableScrollContainer } from '../shared/DraggableScrollContainer';
 
 export const AdminDashboard: React.FC = () => {
   const {
@@ -45,6 +46,7 @@ export const AdminDashboard: React.FC = () => {
   const todayAbsents = todayAttendance.filter((a) => a.status === 'absent');
   const attendanceRate = todayAttendance.length > 0 ? ((todayPresents / todayAttendance.length) * 100).toFixed(1) : '95.0';
   const pendingLeaves = leaveRequests.filter((l) => l.status === 'pending');
+  const [leaveFilter, setLeaveFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   // New Announcement Modal state
   const [showAnnModal, setShowAnnModal] = useState(false);
@@ -103,11 +105,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         {/* Quick KPI stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/10">
-          <div className="bg-white/10 p-3.5 rounded-2xl border border-white/10 backdrop-blur-xs">
-            <span className="text-2xl font-black block text-purple-200">{totalStudents}</span>
-            <span className="text-[11px] text-purple-200">{t('enrolledStudents')}</span>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6 pt-6 border-t border-white/10">
           <div className="bg-white/10 p-3.5 rounded-2xl border border-white/10 backdrop-blur-xs">
             <span className="text-2xl font-black block text-purple-200">{totalTeachers}</span>
             <span className="text-[11px] text-purple-200">{t('teachingStaff')}</span>
@@ -116,111 +114,134 @@ export const AdminDashboard: React.FC = () => {
             <span className="text-2xl font-black block text-emerald-300">%{attendanceRate}</span>
             <span className="text-[11px] text-purple-200">{t('todayAttendanceRate')}</span>
           </div>
-          <div className="bg-white/10 p-3.5 rounded-2xl border border-white/10 backdrop-blur-xs">
-            <span className="text-2xl font-black block text-amber-300">{pendingLeaves.length}</span>
-            <span className="text-[11px] text-purple-200">{t('pendingExcuses')}</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveAdminTab('leaves');
+              setLeaveFilter('pending');
+            }}
+            className="bg-amber-400/20 hover:bg-amber-400/30 p-3.5 rounded-2xl border border-amber-300/40 hover:border-amber-300 backdrop-blur-xs transition-all hover:scale-[1.02] active:scale-95 cursor-pointer text-right rtl:text-right flex flex-col justify-between group shadow-sm"
+            title={language === 'ar' ? 'اضغط لعرض طلبات الأعذار المعلقة مباشرة والبت فيها' : 'Click to view pending leave requests'}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-2xl font-black block text-amber-300 group-hover:scale-105 transition-transform font-mono">
+                {pendingLeaves.length}
+              </span>
+              <span className="text-[10px] font-black bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-full shadow-xs flex items-center gap-1">
+                <span>{language === 'ar' ? 'عرض الأعذار' : 'View Excuses'}</span>
+                <span className="rtl:rotate-180">→</span>
+              </span>
+            </div>
+            <div className="mt-1">
+              <span className="text-[11px] text-amber-100 block font-bold">{t('pendingExcuses')}</span>
+              <span className="text-[10px] text-amber-200/80 block">
+                {language === 'ar' ? 'اضغط للانتقال المباشر والاعتماد' : 'Click to view & approve'}
+              </span>
+            </div>
+          </button>
         </div>
       </div>
 
-      {/* Admin Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto scrollbar-none">
-        <button
-          onClick={() => setActiveAdminTab('overview')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeAdminTab === 'overview'
-              ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <CalendarCheck className="w-4 h-4" />
-          <span>{t('todayAbsencesSummary')}</span>
-        </button>
+      {/* Admin Tabs (Draggable on PC & Mobile) */}
+      <DraggableScrollContainer className="pb-2" wrapperClassName="border-b border-slate-200">
+        <div className="flex items-center gap-2 px-2 py-1 min-w-max">
+          <button
+            onClick={() => setActiveAdminTab('overview')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeAdminTab === 'overview'
+                ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <CalendarCheck className="w-4 h-4" />
+            <span>{t('todayAbsencesSummary')}</span>
+          </button>
 
-        {/* TAB: ACCOUNTS PROVISIONING (TEACHERS, STUDENTS, PARENTS) */}
-        <button
-          onClick={() => setActiveAdminTab('accounts')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeAdminTab === 'accounts'
-              ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <UserPlus className="w-4 h-4 text-purple-400" />
-          <span>{t('manageAccountsTab')}</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-900 font-black">
-            {language === 'ar' ? 'إنشاء وربط' : 'New'}
-          </span>
-        </button>
+          {/* TAB: ACCOUNTS PROVISIONING (TEACHERS, STUDENTS, PARENTS) */}
+          <button
+            onClick={() => setActiveAdminTab('accounts')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeAdminTab === 'accounts'
+                ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <UserPlus className="w-4 h-4 text-purple-400" />
+            <span>{t('manageAccountsTab')}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-900 font-black">
+              {language === 'ar' ? 'إنشاء وربط' : 'New'}
+            </span>
+          </button>
 
-        {/* TAB: EDIT STUDENT GRADES */}
-        <button
-          onClick={() => setActiveAdminTab('grades')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeAdminTab === 'grades'
-              ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Award className="w-4 h-4 text-amber-500" />
-          <span>{t('manageGradesTab')}</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-800 font-black">
-            {language === 'ar' ? 'تعديل' : 'Edit'}
-          </span>
-        </button>
+          {/* TAB: EDIT STUDENT GRADES */}
+          <button
+            onClick={() => setActiveAdminTab('grades')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeAdminTab === 'grades'
+                ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Award className="w-4 h-4 text-amber-500" />
+            <span>{t('manageGradesTab')}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-100 text-purple-800 font-black">
+              {language === 'ar' ? 'تعديل' : 'Edit'}
+            </span>
+          </button>
 
-        {/* TAB: EDIT TIMETABLE */}
-        <button
-          onClick={() => setActiveAdminTab('schedule')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeAdminTab === 'schedule'
-              ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Clock className="w-4 h-4 text-blue-500" />
-          <span>{t('manageScheduleTab')}</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-800 font-black">
-            {language === 'ar' ? 'تعديل' : 'Edit'}
-          </span>
-        </button>
+          {/* TAB: EDIT TIMETABLE */}
+          <button
+            onClick={() => setActiveAdminTab('schedule')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeAdminTab === 'schedule'
+                ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Clock className="w-4 h-4 text-blue-500" />
+            <span>{t('manageScheduleTab')}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-800 font-black">
+              {language === 'ar' ? 'تعديل' : 'Edit'}
+            </span>
+          </button>
 
-        <button
-          onClick={() => setActiveAdminTab('directory')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeAdminTab === 'directory'
-              ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>{t('staffAndStudentsDir')}</span>
-        </button>
+          <button
+            onClick={() => setActiveAdminTab('directory')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeAdminTab === 'directory'
+                ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>{t('staffAndStudentsDir')}</span>
+          </button>
 
-        <button
-          onClick={() => setActiveAdminTab('announcements')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeAdminTab === 'announcements'
-              ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <Bell className="w-4 h-4" />
-          <span>{t('schoolAnnouncements')} ({announcements.length})</span>
-        </button>
+          <button
+            onClick={() => setActiveAdminTab('announcements')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeAdminTab === 'announcements'
+                ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Bell className="w-4 h-4" />
+            <span>{t('schoolAnnouncements')} ({announcements.length})</span>
+          </button>
 
-        <button
-          onClick={() => setActiveAdminTab('leaves')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeAdminTab === 'leaves'
-              ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
-              : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          <CalendarCheck className="w-4 h-4" />
-          <span>{t('parentLeaveRequests')} ({pendingLeaves.length})</span>
-        </button>
-      </div>
+          <button
+            onClick={() => setActiveAdminTab('leaves')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeAdminTab === 'leaves'
+                ? 'bg-purple-700 text-white shadow-md shadow-purple-700/20'
+                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <CalendarCheck className="w-4 h-4" />
+            <span>{t('parentLeaveRequests')} ({pendingLeaves.length})</span>
+          </button>
+        </div>
+      </DraggableScrollContainer>
 
       {/* TAB 1: OVERVIEW & ATTENDANCE LOG */}
       {activeAdminTab === 'overview' && (
@@ -332,7 +353,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
             <h3 className="font-black text-slate-900 text-base mb-4 flex items-center gap-2">
               <Users className="w-5 h-5 text-blue-600" />
-              <span>{t('enrolledStudents')} ({students.length})</span>
+              <span>{language === 'ar' ? 'سجل الطلاب' : 'Students List'} ({students.length})</span>
             </h3>
 
             <div className="overflow-x-auto">
@@ -433,80 +454,239 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* TAB 4: LEAVE REQUESTS APPROVAL */}
-      {activeAdminTab === 'leaves' && (
-        <div className="space-y-4 animate-fadeIn">
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-            <h3 className="font-black text-slate-900 text-base">
-              {t('parentLeaveRequests')}
-            </h3>
-            <p className="text-xs text-slate-500">
-              {language === 'ar' ? 'الموافقة على الأعذار الطبية والغيابات أو رفضها' : 'Review and approve/reject medical leaves'}
-            </p>
-          </div>
+      {activeAdminTab === 'leaves' && (() => {
+        const approvedCount = leaveRequests.filter((l) => l.status === 'approved').length;
+        const rejectedCount = leaveRequests.filter((l) => l.status === 'rejected').length;
+        const filteredLeaves = leaveRequests.filter((req) => {
+          if (leaveFilter === 'pending') return req.status === 'pending';
+          if (leaveFilter === 'approved') return req.status === 'approved';
+          if (leaveFilter === 'rejected') return req.status === 'rejected';
+          return true;
+        });
 
-          <div className="space-y-3">
-            {leaveRequests.map((req) => (
-              <div
-                key={req.id}
-                className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
-              >
-                <div className="space-y-1.5 text-xs">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-slate-900 text-sm">
-                      {req.studentName} ({req.className})
-                    </h4>
-                    <span className="text-slate-400 text-[11px]">
-                      {language === 'ar' ? `بطلب من: ${req.parentName}` : `Requested by: ${req.parentName}`}
-                    </span>
-                  </div>
-                  <p className="text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                    <strong>{language === 'ar' ? 'السبب: ' : 'Reason: '}</strong> {req.reason}
-                  </p>
-                  <p className="text-slate-400 text-[11px] font-mono">
-                    {req.startDate} {req.startDate !== req.endDate && `→ ${req.endDate}`}
-                  </p>
-                  {req.adminResponse && (
-                    <p className="text-emerald-700 font-semibold text-[11px]">
-                      {language === 'ar' ? 'رد الإدارة: ' : 'Admin note: '} {req.adminResponse}
-                    </p>
-                  )}
+        return (
+          <div className="space-y-4 animate-fadeIn">
+            {/* Header with Title and Filter Segmented Control */}
+            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2.5 py-0.5 rounded-md text-xs font-black bg-amber-100 text-amber-900 border border-amber-200">
+                    {language === 'ar' ? 'بوابة إدارة الأعذار المدرسية' : 'School Leave Requests'}
+                  </span>
+                  <span className="text-xs font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    {pendingLeaves.length} {language === 'ar' ? 'طلب معلق' : 'Pending'}
+                  </span>
                 </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  {req.status === 'pending' ? (
-                    <>
-                      <button
-                        onClick={() => updateLeaveRequestStatus(req.id, 'approved')}
-                        className="flex items-center gap-1 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow transition"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>{t('approveExcuse')}</span>
-                      </button>
-                      <button
-                        onClick={() => updateLeaveRequestStatus(req.id, 'rejected')}
-                        className="flex items-center gap-1 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow transition"
-                      >
-                        <XCircle className="w-4 h-4" />
-                        <span>{t('rejectExcuse')}</span>
-                      </button>
-                    </>
-                  ) : (
-                    <span
-                      className={`font-black px-3 py-1.5 rounded-xl text-xs ${
-                        req.status === 'approved'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {req.status === 'approved' ? t('leaveApproved') : t('leaveRejected')}
-                    </span>
-                  )}
-                </div>
+                <h3 className="font-black text-slate-900 text-lg">
+                  {t('parentLeaveRequests')}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {language === 'ar'
+                    ? 'مراجعة طلبات الأعذار المرضية والغياب المرفوعة من أولياء الأمور واعتمادها أو رفضها فورياً'
+                    : 'Review and approve/reject medical leaves submitted by parents'}
+                </p>
               </div>
-            ))}
+
+              {/* Status Filter Tabs */}
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-2xl text-xs font-bold self-start md:self-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setLeaveFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl transition ${
+                    leaveFilter === 'all'
+                      ? 'bg-purple-700 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {language === 'ar' ? 'الكل' : 'All'} ({leaveRequests.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLeaveFilter('pending')}
+                  className={`px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 ${
+                    leaveFilter === 'pending'
+                      ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                      : 'text-amber-800 bg-amber-50 hover:bg-amber-100'
+                  }`}
+                >
+                  <span>{language === 'ar' ? 'المعلقة فقط' : 'Pending'}</span>
+                  <span className="w-5 h-5 rounded-full bg-amber-300 text-slate-950 flex items-center justify-center text-[10px] font-black">
+                    {pendingLeaves.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLeaveFilter('approved')}
+                  className={`px-3 py-1.5 rounded-xl transition ${
+                    leaveFilter === 'approved'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {language === 'ar' ? 'المعتمدة' : 'Approved'} ({approvedCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLeaveFilter('rejected')}
+                  className={`px-3 py-1.5 rounded-xl transition ${
+                    leaveFilter === 'rejected'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {language === 'ar' ? 'المرفوضة' : 'Rejected'} ({rejectedCount})
+                </button>
+              </div>
+            </div>
+
+            {/* Pending Notice Banner */}
+            {leaveFilter === 'pending' && (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-950 font-bold">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+                  <span>
+                    {language === 'ar'
+                      ? `أنت تشاهد الآن طلبات الأعذار المعلقة بانتظار قرار الإدارة (${pendingLeaves.length} طلب)`
+                      : `Viewing pending excuse requests awaiting admin approval (${pendingLeaves.length} requests)`}
+                  </span>
+                </div>
+                {pendingLeaves.length > 0 && (
+                  <span className="text-[11px] text-amber-800 font-semibold hidden sm:inline">
+                    {language === 'ar' ? 'اضغط على موافقة أو رفض لكل عذر' : 'Click approve or reject below'}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Empty State */}
+            {filteredLeaves.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 space-y-3">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto text-xl">
+                  ✓
+                </div>
+                <h4 className="font-black text-slate-900 text-base">
+                  {leaveFilter === 'pending'
+                    ? (language === 'ar' ? 'لا توجد طلبات أعذار معلقة حالياً' : 'No Pending Excuses Currently')
+                    : (language === 'ar' ? 'لا توجد طلبات في هذا التصنيف' : 'No requests found')}
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  {leaveFilter === 'pending'
+                    ? (language === 'ar' ? 'تم اتخاذ الإجراء والبت في كافة الأعذار المقدمة من أولياء الأمور بنجاح.' : 'All submitted student excuse requests have been processed.')
+                    : (language === 'ar' ? 'لم يتم العثور على أي طلبات أعذار مطابقة للتصفية المختارة.' : 'No items match the selected filter.')}
+                </p>
+                {leaveFilter !== 'all' && (
+                  <button
+                    type="button"
+                    onClick={() => setLeaveFilter('all')}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+                  >
+                    {language === 'ar' ? 'عرض جميع الطلبات' : 'Show All Requests'}
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredLeaves.map((req) => (
+                  <div
+                    key={req.id}
+                    className={`bg-white rounded-3xl p-5 border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 transition ${
+                      req.status === 'pending'
+                        ? 'border-amber-300 hover:border-amber-400 bg-amber-50/10'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h4 className="font-black text-slate-900 text-base">
+                          {req.studentName}
+                        </h4>
+                        <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 font-bold text-[11px]">
+                          {req.className}
+                        </span>
+                        <span className="text-slate-400 text-xs">
+                          {language === 'ar' ? `بطلب من ولي الأمر: ${req.parentName}` : `Requested by: ${req.parentName}`}
+                        </span>
+                        <span
+                          className={`font-black px-2.5 py-0.5 rounded-full text-[10px] ${
+                            req.status === 'pending'
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                              : req.status === 'approved'
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-rose-100 text-rose-800 border border-rose-200'
+                          }`}
+                        >
+                          {req.status === 'pending'
+                            ? (language === 'ar' ? 'معلق بحاجة لإجراء' : 'Pending')
+                            : req.status === 'approved'
+                            ? t('leaveApproved')
+                            : t('leaveRejected')}
+                        </span>
+                      </div>
+
+                      {/* Reason Description Box */}
+                      <div className="text-slate-800 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                        <strong className="text-slate-900 font-bold block mb-0.5">
+                          {language === 'ar' ? 'سبب الغياب / العذر المقدم:' : 'Reason for Absence:'}
+                        </strong>
+                        <p className="text-xs text-slate-700 leading-relaxed">{req.reason}</p>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-[11px] text-slate-500 font-mono">
+                        <span>
+                          📅 {language === 'ar' ? 'فترة الغياب:' : 'Period:'} {req.startDate} {req.startDate !== req.endDate && `← ${req.endDate}`}
+                        </span>
+                        <span>
+                          🕒 {language === 'ar' ? 'تاريخ تقديم الطلب:' : 'Requested on:'} {req.requestDate}
+                        </span>
+                      </div>
+
+                      {req.adminResponse && (
+                        <p className="text-emerald-800 font-bold text-[11px] bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-200 inline-block">
+                          {language === 'ar' ? 'رد الإدارة المدرسية: ' : 'Admin note: '} {req.adminResponse}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                      {req.status === 'pending' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => updateLeaveRequestStatus(req.id, 'approved')}
+                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition active:scale-95"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>{t('approveExcuse')}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateLeaveRequestStatus(req.id, 'rejected')}
+                            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition active:scale-95"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            <span>{t('rejectExcuse')}</span>
+                          </button>
+                        </>
+                      ) : (
+                        <span
+                          className={`font-black px-3.5 py-2 rounded-xl text-xs border ${
+                            req.status === 'approved'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : 'bg-rose-50 text-rose-800 border-rose-300'
+                          }`}
+                        >
+                          {req.status === 'approved' ? `✓ ${t('leaveApproved')}` : `✕ ${t('leaveRejected')}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL: Post School Announcement */}
       {showAnnModal && (

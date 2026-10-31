@@ -26,13 +26,21 @@ import {
   Upload,
   Activity,
   FileJson,
+  Edit3,
+  Image as ImageIcon,
+  X,
+  Eye,
+  EyeOff,
+  RefreshCw,
 } from 'lucide-react';
+import { DraggableScrollContainer } from '../shared/DraggableScrollContainer';
 
 export const SuperAdminDashboard: React.FC = () => {
   const {
     currentUser,
     schools,
     addSchool,
+    updateSchool,
     toggleSchoolStatus,
     deleteSchool,
     manageSchoolAsAdmin,
@@ -51,6 +59,8 @@ export const SuperAdminDashboard: React.FC = () => {
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const addSchoolLogoFileRef = useRef<HTMLInputElement>(null);
+  const editSchoolLogoFileRef = useRef<HTMLInputElement>(null);
 
   // New School Form State
   const [name, setName] = useState('');
@@ -63,7 +73,75 @@ export const SuperAdminDashboard: React.FC = () => {
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPhone, setAdminPhone] = useState('+966 50 ');
+  const [adminPassword, setAdminPassword] = useState('Admin@2026');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [maxStudents, setMaxStudents] = useState<number>(1000);
+  const [schoolLogo, setSchoolLogo] = useState(
+    'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=150&auto=format&fit=crop&q=80'
+  );
+
+  const generateAdminPassword = () => {
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    return `Admin@${rand}`;
+  };
+
+  // Edit School & Logo State
+  const [editingSchool, setEditingSchool] = useState<School | null>(null);
+  const [deletingSchool, setDeletingSchool] = useState<School | null>(null);
+  const [editSchoolName, setEditSchoolName] = useState('');
+  const [editSchoolNameEn, setEditSchoolNameEn] = useState('');
+  const [editSchoolLogo, setEditSchoolLogo] = useState('');
+
+  // Sample School Crest/Logo Presets
+  const schoolLogoPresets = [
+    'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=150&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=150&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=150&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1571260899304-425eee4c7efc?w=150&auto=format&fit=crop&q=80',
+    'https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=150&auto=format&fit=crop&q=80',
+  ];
+
+  // Device Logo File Upload Handler (FileReader -> base64 data URL)
+  const handleLogoFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    callback: (dataUrl: string) => void
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert(
+        language === 'ar'
+          ? 'يرجى اختيار ملف صورة صالح (PNG, JPG, JPEG, SVG, WebP)'
+          : 'Please select a valid image file (PNG, JPG, SVG, WebP)'
+      );
+      return;
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      alert(
+        language === 'ar'
+          ? 'حجم الصورة كبير جداً (الحد الأقصى 3 ميجابايت). يرجى اختيار ملف بحجم أصغر.'
+          : 'Image file is too large (max 3MB). Please choose a smaller file.'
+      );
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      if (dataUrl) {
+        callback(dataUrl);
+        showToast(language === 'ar' ? 'تم رفع الشعار من جهازك بنجاح ✓' : 'Logo uploaded from device successfully ✓');
+      }
+    };
+    reader.onerror = () => {
+      alert(language === 'ar' ? 'حدث خطأ أثناء قراءة ملف الصورة من جهازك' : 'Error reading image file');
+    };
+    reader.readAsDataURL(file);
+    // Reset file input value so re-selecting same file triggers onChange
+    e.target.value = '';
+  };
 
   // Global Broadcast Form State
   const [broadcastTitle, setBroadcastTitle] = useState('');
@@ -117,8 +195,9 @@ export const SuperAdminDashboard: React.FC = () => {
       adminName,
       adminEmail,
       adminPhone,
+      adminPassword: adminPassword.trim() || 'Admin@2026',
       maxStudents: Number(maxStudents),
-      logo: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=150&auto=format&fit=crop&q=80',
+      logo: schoolLogo.trim() || 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=150&auto=format&fit=crop&q=80',
     });
 
     setIsAddSchoolModalOpen(false);
@@ -128,7 +207,24 @@ export const SuperAdminDashboard: React.FC = () => {
     setCode(`SCH-${Math.floor(100 + Math.random() * 900)}`);
     setAdminName('');
     setAdminEmail('');
+    setAdminPassword('Admin@2026');
+    setShowAdminPassword(false);
+    setSchoolLogo('https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=150&auto=format&fit=crop&q=80');
     showToast(t('schoolCreatedSuccess'));
+  };
+
+  const handleSaveEditSchool = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSchool || !editSchoolName.trim()) return;
+
+    updateSchool(editingSchool.id, {
+      name: editSchoolName.trim(),
+      nameEn: editSchoolNameEn.trim() || editSchoolName.trim(),
+      logo: editSchoolLogo.trim() || editingSchool.logo,
+    });
+
+    setEditingSchool(null);
+    showToast(language === 'ar' ? 'تم حفظ وتحديث اسم المدرسة والشعار بنجاح لجميع الطلاب وأولياء الأمور' : 'School name & logo updated successfully');
   };
 
   const handleBroadcastSubmit = (e: React.FormEvent) => {
@@ -324,47 +420,49 @@ export const SuperAdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Super Admin Section Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('schools')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeTab === 'schools'
-              ? 'bg-amber-500 text-slate-950 shadow-sm'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          <span>{language === 'ar' ? 'إدارة المجمعات والمدارس' : 'Schools & Campuses'} ({schools.length})</span>
-        </button>
+      {/* Super Admin Section Navigation Tabs (Draggable on PC & Mobile) */}
+      <DraggableScrollContainer className="pb-2" wrapperClassName="border-b border-slate-200">
+        <div className="flex items-center gap-2 px-2 py-1 min-w-max">
+          <button
+            onClick={() => setActiveTab('schools')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeTab === 'schools'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+            }`}
+          >
+            <Building2 className="w-4 h-4" />
+            <span>{language === 'ar' ? 'إدارة المجمعات والمدارس' : 'Schools & Campuses'} ({schools.length})</span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('audit')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeTab === 'audit'
-              ? 'bg-amber-500 text-slate-950 shadow-sm'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-          }`}
-        >
-          <Activity className="w-4 h-4" />
-          <span>{t('systemAuditTrail')}</span>
-          <span className="px-1.5 py-0.5 rounded-md bg-slate-900 text-white text-[10px] font-black">
-            {auditLogs.length}
-          </span>
-        </button>
+          <button
+            onClick={() => setActiveTab('audit')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeTab === 'audit'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+            }`}
+          >
+            <Activity className="w-4 h-4" />
+            <span>{t('systemAuditTrail')}</span>
+            <span className="px-1.5 py-0.5 rounded-md bg-slate-900 text-white text-[10px] font-black">
+              {auditLogs.length}
+            </span>
+          </button>
 
-        <button
-          onClick={() => setActiveTab('backup')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
-            activeTab === 'backup'
-              ? 'bg-amber-500 text-slate-950 shadow-sm'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-          }`}
-        >
-          <Database className="w-4 h-4" />
-          <span>{language === 'ar' ? 'النسخ الاحتياطي وإدارة البيانات' : 'Backup & Data Management'}</span>
-        </button>
-      </div>
+          <button
+            onClick={() => setActiveTab('backup')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shrink-0 ${
+              activeTab === 'backup'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+            }`}
+          >
+            <Database className="w-4 h-4" />
+            <span>{language === 'ar' ? 'النسخ الاحتياطي وإدارة البيانات' : 'Backup & Data Management'}</span>
+          </button>
+        </div>
+      </DraggableScrollContainer>
 
       {activeTab === 'schools' && (
         <>
@@ -385,49 +483,51 @@ export const SuperAdminDashboard: React.FC = () => {
           />
         </div>
 
-        {/* Plan Filters */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs font-bold">
-          <button
-            onClick={() => setSelectedPlanFilter('all')}
-            className={`px-3 py-1.5 rounded-xl transition ${
-              selectedPlanFilter === 'all'
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {t('all')} ({schools.length})
-          </button>
-          <button
-            onClick={() => setSelectedPlanFilter('platinum')}
-            className={`px-3 py-1.5 rounded-xl transition ${
-              selectedPlanFilter === 'platinum'
-                ? 'bg-cyan-600 text-white'
-                : 'bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
-            }`}
-          >
-            {t('platinumPlan')}
-          </button>
-          <button
-            onClick={() => setSelectedPlanFilter('gold')}
-            className={`px-3 py-1.5 rounded-xl transition ${
-              selectedPlanFilter === 'gold'
-                ? 'bg-amber-600 text-white'
-                : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-            }`}
-          >
-            {t('goldPlan')}
-          </button>
-          <button
-            onClick={() => setSelectedPlanFilter('enterprise')}
-            className={`px-3 py-1.5 rounded-xl transition ${
-              selectedPlanFilter === 'enterprise'
-                ? 'bg-purple-600 text-white'
-                : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
-            }`}
-          >
-            {t('enterprisePlan')}
-          </button>
-        </div>
+        {/* Plan Filters (Draggable on PC & Mobile) */}
+        <DraggableScrollContainer className="pb-1 sm:pb-0" wrapperClassName="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 text-xs font-bold whitespace-nowrap px-2 py-0.5 min-w-max">
+            <button
+              onClick={() => setSelectedPlanFilter('all')}
+              className={`px-3 py-1.5 rounded-xl transition shrink-0 ${
+                selectedPlanFilter === 'all'
+                  ? 'bg-slate-900 text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {t('all')} ({schools.length})
+            </button>
+            <button
+              onClick={() => setSelectedPlanFilter('platinum')}
+              className={`px-3 py-1.5 rounded-xl transition shrink-0 ${
+                selectedPlanFilter === 'platinum'
+                  ? 'bg-cyan-600 text-white'
+                  : 'bg-cyan-50 text-cyan-800 hover:bg-cyan-100'
+              }`}
+            >
+              {t('platinumPlan')}
+            </button>
+            <button
+              onClick={() => setSelectedPlanFilter('gold')}
+              className={`px-3 py-1.5 rounded-xl transition shrink-0 ${
+                selectedPlanFilter === 'gold'
+                  ? 'bg-amber-600 text-white'
+                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+              }`}
+            >
+              {t('goldPlan')}
+            </button>
+            <button
+              onClick={() => setSelectedPlanFilter('enterprise')}
+              className={`px-3 py-1.5 rounded-xl transition shrink-0 ${
+                selectedPlanFilter === 'enterprise'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-purple-50 text-purple-800 hover:bg-purple-100'
+              }`}
+            >
+              {t('enterprisePlan')}
+            </button>
+          </div>
+        </DraggableScrollContainer>
       </div>
 
       {/* Schools Directory Cards Grid */}
@@ -531,10 +631,19 @@ export const SuperAdminDashboard: React.FC = () => {
                     <span className="text-slate-400">{t('principalPhone')}:</span>
                     <span className="font-mono text-slate-600">{school.adminPhone}</span>
                   </div>
+                  <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-200/60">
+                    <span className="text-slate-600 font-semibold flex items-center gap-1">
+                      <Key className="w-3 h-3 text-amber-500" />
+                      {language === 'ar' ? 'كلمة مرور المدير:' : 'Admin Password:'}
+                    </span>
+                    <span className="font-mono text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[10px] font-bold select-all" title={language === 'ar' ? 'كلمة مرور مدير المدرسة' : 'School Admin Password'}>
+                      {school.adminPassword || 'Admin@2026'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Action Buttons: Enter Portal as Admin, Toggle Status, Delete */}
+              {/* Action Buttons: Enter Portal as Admin, Edit School & Logo, Toggle Status, Delete */}
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                 <button
                   onClick={() => manageSchoolAsAdmin(school.id)}
@@ -543,6 +652,20 @@ export const SuperAdminDashboard: React.FC = () => {
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   <span>{t('enterSchoolPortal')}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setEditingSchool(school);
+                    setEditSchoolName(school.name);
+                    setEditSchoolNameEn(school.nameEn || school.name);
+                    setEditSchoolLogo(school.logo || '');
+                  }}
+                  className="flex items-center gap-1.5 py-2 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs transition active:scale-95"
+                  title={language === 'ar' ? 'تعديل اسم المنشأة والشعار الرسمي' : 'Edit School Name & Logo'}
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                  <span>{language === 'ar' ? 'الاسم والشعار' : 'Name & Logo'}</span>
                 </button>
 
                 <button
@@ -558,13 +681,8 @@ export const SuperAdminDashboard: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={() => {
-                    if (window.confirm(language === 'ar' ? 'هل أنت متأكد من حذف حساب هذه المنشأة نهائياً؟' : 'Delete this school permanently?')) {
-                      deleteSchool(school.id);
-                      showToast(language === 'ar' ? 'تم حذف المنشأة' : 'School facility deleted');
-                    }
-                  }}
-                  className="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-rose-100 hover:text-rose-700 text-slate-500 text-xs transition"
+                  onClick={() => setDeletingSchool(school)}
+                  className="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-rose-100 hover:text-rose-700 text-slate-500 text-xs transition active:scale-95"
                   title={t('delete')}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -890,6 +1008,104 @@ export const SuperAdminDashboard: React.FC = () => {
                 </div>
               </div>
 
+              {/* School Logo & Emblem Section (Device File Upload + URL + Presets) */}
+              <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-black text-amber-950 block text-xs flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-amber-700" />
+                    <span>{language === 'ar' ? 'شعار وهوية المدرسة (يظهر للطلاب والأهل) *:' : 'School Official Logo (shown to students & parents):'}</span>
+                  </span>
+                  {schoolLogo && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                        {schoolLogo.startsWith('data:image')
+                          ? (language === 'ar' ? 'ملف مرفوع من جهازك ✓' : 'Device Upload ✓')
+                          : (language === 'ar' ? 'شعار معتمد' : 'Active Logo')}
+                      </span>
+                      <img
+                        src={schoolLogo}
+                        alt="Logo preview"
+                        className="w-9 h-9 rounded-xl object-contain bg-white border border-amber-300 p-0.5 shadow-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Hidden File Input for Device Upload */}
+                <input
+                  type="file"
+                  ref={addSchoolLogoFileRef}
+                  onChange={(e) => handleLogoFileChange(e, setSchoolLogo)}
+                  accept="image/png, image/jpeg, image/jpg, image/svg+xml, image/webp"
+                  className="hidden"
+                />
+
+                {/* Device Upload Action Card */}
+                <div
+                  onClick={() => addSchoolLogoFileRef.current?.click()}
+                  className="p-3.5 border-2 border-dashed border-amber-300 hover:border-amber-500 bg-white hover:bg-amber-50/60 rounded-2xl cursor-pointer transition text-center group flex flex-col items-center justify-center gap-1.5 shadow-xs"
+                >
+                  <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center group-hover:scale-110 transition shadow-xs">
+                    <Upload className="w-5 h-5 text-amber-800" />
+                  </div>
+                  <div>
+                    <span className="font-black text-amber-950 text-xs block">
+                      {language === 'ar' ? 'اضغط هنا لرفع الشعار كصورة أو ملف من جهازك' : 'Click here to upload logo file/image from your device'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">
+                      {language === 'ar' ? 'يدعم صور PNG, JPG, WebP, SVG حتى 3 ميجابايت' : 'Supports PNG, JPG, WebP, SVG up to 3MB'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Secondary Options: Direct URL & Presets */}
+                <div className="pt-2 border-t border-amber-200/60 space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600 font-bold">
+                      {language === 'ar' ? 'أو أدخل رابط الشعار المباشر (URL):' : 'Or enter logo image URL:'}
+                    </span>
+                    {schoolLogo && (
+                      <button
+                        type="button"
+                        onClick={() => setSchoolLogo('')}
+                        className="text-[10px] text-rose-600 hover:underline font-bold"
+                      >
+                        {language === 'ar' ? 'إفراغ الشعار' : 'Clear'}
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="url"
+                    value={schoolLogo}
+                    onChange={(e) => setSchoolLogo(e.target.value)}
+                    placeholder="https://example.com/logo.png"
+                    className="w-full px-3 py-1.5 rounded-xl border border-amber-300 bg-white font-mono text-[11px] focus:ring-2 focus:ring-amber-500"
+                  />
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                      {language === 'ar' ? 'أو اختر من النماذج المعتمدة الجاهزة:' : 'Or choose from preset emblems:'}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {schoolLogoPresets.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setSchoolLogo(preset)}
+                          className={`w-8 h-8 rounded-lg overflow-hidden border-2 transition p-0.5 bg-white ${
+                            schoolLogo === preset
+                              ? 'border-amber-600 scale-110 shadow-md ring-2 ring-amber-300'
+                              : 'border-slate-200 opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <img src={preset} alt="Preset" className="w-full h-full object-cover rounded-md" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Admin Account Credentials */}
               <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
                 <span className="font-black text-slate-900 block text-xs flex items-center gap-1.5">
@@ -940,6 +1156,46 @@ export const SuperAdminDashboard: React.FC = () => {
                     onChange={(e) => setAdminPhone(e.target.value)}
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
                   />
+                </div>
+
+                <div className="pt-1 border-t border-slate-200">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold text-slate-700 text-xs">
+                      {language === 'ar' ? 'تعيين كلمة مرور لمدير المدرسة *:' : 'School Admin Password *:'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setAdminPassword(generateAdminPassword())}
+                      className="text-[10px] text-blue-600 hover:text-blue-800 font-bold underline flex items-center gap-1"
+                      title={language === 'ar' ? 'توليد تلقائي لكلمة المرور' : 'Auto Generate Password'}
+                    >
+                      <RefreshCw className="w-2.5 h-2.5" />
+                      <span>{language === 'ar' ? 'توليد تلقائي' : 'Auto-Generate'}</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showAdminPassword ? 'text' : 'password'}
+                      required
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      placeholder="Admin@2026"
+                      className="w-full px-3 py-1.5 pl-8 rtl:pl-3 rtl:pr-8 rounded-lg border border-emerald-300 font-mono font-bold text-emerald-900 bg-white focus:ring-2 focus:ring-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      className="absolute left-2.5 rtl:left-auto rtl:right-2.5 top-2 text-slate-400 hover:text-slate-600"
+                      title={showAdminPassword ? 'إخفاء' : 'إظهار'}
+                    >
+                      {showAdminPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    {language === 'ar'
+                      ? 'يستطيع مالك المنصة تعيين كلمة مرور لمدير المنشأة أو استخدام التوليد التلقائي ليسلمها له للدخول'
+                      : 'The platform owner can set a password for the school admin or auto-generate one to provide them for login'}
+                  </p>
                 </div>
               </div>
 
@@ -1019,6 +1275,227 @@ export const SuperAdminDashboard: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Edit School Name & Logo (Owner / Super Admin) */}
+      {editingSchool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">
+                    {language === 'ar' ? 'تعديل اسم المدرسة والشعار الرسمي' : 'Edit School Name & Logo'}
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    {language === 'ar'
+                      ? 'يتم تحديث الاسم والشعار فورياً ويظهر لجميع طلاب وأولياء أمور هذه المدرسة'
+                      : 'Updated live for all students and parents in this school'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingSchool(null)}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditSchool} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {language === 'ar' ? 'اسم المدرسة (عربي) *:' : 'School Name (Arabic) *:'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editSchoolName}
+                    onChange={(e) => setEditSchoolName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold bg-white focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    {language === 'ar' ? 'اسم المدرسة (English):' : 'School Name (English):'}
+                  </label>
+                  <input
+                    type="text"
+                    value={editSchoolNameEn}
+                    onChange={(e) => setEditSchoolNameEn(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold bg-white focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+
+              {/* Logo preview & Device File Upload */}
+              <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-amber-950 flex items-center gap-1.5 text-xs">
+                    <ImageIcon className="w-4 h-4 text-amber-700" />
+                    <span>{language === 'ar' ? 'شعار وهوية المنشأة (Logo):' : 'School Logo:'}</span>
+                  </span>
+                  {editSchoolLogo && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-200">
+                        {editSchoolLogo.startsWith('data:image')
+                          ? (language === 'ar' ? 'ملف مرفوع من جهازك ✓' : 'Device Upload ✓')
+                          : (language === 'ar' ? 'شعار معتمد' : 'Active Logo')}
+                      </span>
+                      <img
+                        src={editSchoolLogo}
+                        alt="Current logo"
+                        className="w-9 h-9 rounded-xl object-contain bg-white border border-amber-300 p-0.5 shadow-sm"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Hidden File Input for Device Upload */}
+                <input
+                  type="file"
+                  ref={editSchoolLogoFileRef}
+                  onChange={(e) => handleLogoFileChange(e, setEditSchoolLogo)}
+                  accept="image/png, image/jpeg, image/jpg, image/svg+xml, image/webp"
+                  className="hidden"
+                />
+
+                {/* Device Upload Action Card */}
+                <div
+                  onClick={() => editSchoolLogoFileRef.current?.click()}
+                  className="p-3.5 border-2 border-dashed border-amber-300 hover:border-amber-500 bg-white hover:bg-amber-50/60 rounded-2xl cursor-pointer transition text-center group flex flex-col items-center justify-center gap-1.5 shadow-xs"
+                >
+                  <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center group-hover:scale-110 transition shadow-xs">
+                    <Upload className="w-5 h-5 text-amber-800" />
+                  </div>
+                  <div>
+                    <span className="font-black text-amber-950 text-xs block">
+                      {language === 'ar' ? 'اضغط هنا لرفع شعار جديد من جهازك (صورة أو ملف)' : 'Click to upload a new logo file/image from your device'}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">
+                      {language === 'ar' ? 'يدعم صور PNG, JPG, WebP, SVG حتى 3 ميجابايت' : 'Supports PNG, JPG, WebP, SVG up to 3MB'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Secondary Options: Direct URL & Presets */}
+                <div className="pt-2 border-t border-amber-200/60 space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-600 font-bold">
+                      {language === 'ar' ? 'أو أدخل رابط الشعار المباشر (URL):' : 'Or enter direct URL:'}
+                    </span>
+                    {editSchoolLogo && (
+                      <button
+                        type="button"
+                        onClick={() => setEditSchoolLogo('')}
+                        className="text-[10px] text-rose-600 hover:underline font-bold"
+                      >
+                        {language === 'ar' ? 'إفراغ الشعار' : 'Clear'}
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="url"
+                    value={editSchoolLogo}
+                    onChange={(e) => setEditSchoolLogo(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 rounded-xl border border-amber-300 font-mono text-[11px] bg-white focus:ring-2 focus:ring-amber-500"
+                  />
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                      {language === 'ar' ? 'أو اختر شعاراً من النماذج المعتمدة:' : 'Or choose from presets:'}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {schoolLogoPresets.map((preset, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setEditSchoolLogo(preset)}
+                          className={`w-8 h-8 rounded-lg overflow-hidden border-2 transition p-0.5 bg-white ${
+                            editSchoolLogo === preset
+                              ? 'border-amber-600 scale-110 shadow-md ring-2 ring-amber-300'
+                              : 'border-slate-200 opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <img src={preset} alt="Preset" className="w-full h-full object-cover rounded-md" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingSchool(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  {t('cancel')}
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black shadow-md transition"
+                >
+                  {language === 'ar' ? 'حفظ وتطبيق الشعار' : 'Save & Apply'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Delete School In-App Confirmation */}
+      {deletingSchool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-rose-100 space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+              <Trash2 className="w-7 h-7 text-rose-600" />
+            </div>
+            <div className="text-center space-y-1.5">
+              <h3 className="font-black text-slate-900 text-lg">
+                {language === 'ar' ? 'تأكيد حذف المنشأة التعليمية نهائياً' : 'Confirm School Deletion'}
+              </h3>
+              <p className="text-xs text-slate-600">
+                {language === 'ar'
+                  ? `هل أنت متأكد من حذف منشأة "${deletingSchool.name}" (${deletingSchool.code}) نهائياً من النظام؟`
+                  : `Are you sure you want to permanently delete "${deletingSchool.nameEn || deletingSchool.name}" (${deletingSchool.code})?`}
+              </p>
+              <div className="p-3 bg-rose-50 text-rose-900 text-xs rounded-2xl border border-rose-200 mt-2 text-right">
+                ⚠️ {language === 'ar'
+                  ? 'سيتم حذف حساب المنشأة وإلغاء صلاحيات إدارتها بشكل نهائي ومباشر.'
+                  : 'The school entity and its management access will be removed permanently.'}
+              </div>
+            </div>
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingSchool(null)}
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition active:scale-95"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const sId = deletingSchool.id;
+                  setDeletingSchool(null);
+                  deleteSchool(sId);
+                  showToast(language === 'ar' ? 'تم حذف المنشأة بنجاح' : 'School facility deleted successfully');
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md transition active:scale-95"
+              >
+                {language === 'ar' ? 'نعم، حذف المنشأة' : 'Yes, Delete School'}
+              </button>
+            </div>
           </div>
         </div>
       )}

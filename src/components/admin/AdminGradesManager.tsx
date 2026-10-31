@@ -524,6 +524,8 @@ export const AdminGradesManager: React.FC = () => {
                     onChange={(e) => setFormTerm(e.target.value as GradeItem['term'])}
                     className="w-full p-2.5 rounded-xl border border-slate-200 font-semibold"
                   >
+                    <option value="النصف الأول">{language === 'ar' ? 'النصف الأول (الفصل الأول)' : 'First Semester / Half'}</option>
+                    <option value="النصف الثاني">{language === 'ar' ? 'النصف الثاني (الفصل الثاني)' : 'Second Semester / Half'}</option>
                     <option value="الفصل الأول">الفصل الأول</option>
                     <option value="الفصل الثاني">الفصل الثاني</option>
                     <option value="الفصل الصيفي">الفصل الصيفي</option>
@@ -712,6 +714,8 @@ export const AdminGradesManager: React.FC = () => {
                     onChange={(e) => setFormTerm(e.target.value as GradeItem['term'])}
                     className="w-full p-2.5 rounded-xl border border-slate-200 font-semibold"
                   >
+                    <option value="النصف الأول">{language === 'ar' ? 'النصف الأول (الفصل الأول)' : 'First Semester / Half'}</option>
+                    <option value="النصف الثاني">{language === 'ar' ? 'النصف الثاني (الفصل الثاني)' : 'Second Semester / Half'}</option>
                     <option value="الفصل الأول">الفصل الأول</option>
                     <option value="الفصل الثاني">الفصل الثاني</option>
                     <option value="الفصل الصيفي">الفصل الصيفي</option>

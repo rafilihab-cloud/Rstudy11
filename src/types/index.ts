@@ -17,6 +17,7 @@ export interface School {
   adminName: string;
   adminEmail: string;
   adminPhone: string;
+  adminPassword?: string;
   studentsCount: number;
   teachersCount: number;
   createdAt: string;
@@ -39,6 +40,7 @@ export interface UserProfile {
   assignedSubjects?: string[];
   childrenIds?: string[];
   schoolId?: string;
+  password?: string;
 }
 
 export interface Student {
@@ -47,6 +49,7 @@ export interface Student {
   nameEn?: string;
   nationalId: string;
   email?: string;
+  password?: string;
   className: string;
   classNameEn?: string;
   avatar: string;
@@ -58,6 +61,9 @@ export interface Student {
   totalAbsences: number;
   badges: string[];
   schoolId?: string;
+  // Tuition Fees & Installments
+  totalTuitionFee?: number; // إجمالي الرسوم / القسط المطلوب
+  paidTuitionFee?: number;  // المبلغ المسدد للمدرسة
 }
 
 export interface Teacher {
@@ -66,6 +72,7 @@ export interface Teacher {
   nameEn?: string;
   email: string;
   phone: string;
+  password?: string;
   subject: string;
   subjectEn?: string;
   classes: string[];
@@ -84,7 +91,8 @@ export interface GradeItem {
   examType: 'اختبار نصفي' | 'اختبار نهائي' | 'اختبار قصير' | 'واجب وتقييم مستمر' | 'مشروع عملي';
   score: number;
   maxScore: number;
-  term: 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الصيفي';
+  term: 'الفصل الأول' | 'الفصل الثاني' | 'الفصل الصيفي' | 'النصف الأول' | 'النصف الثاني' | string;
+  semester?: 'first' | 'second';
   date: string;
   feedback?: string;
   feedbackEn?: string;
@@ -208,6 +216,7 @@ export interface ParentAccount {
   email: string;
   phone: string;
   nationalId?: string;
+  password?: string;
   childrenIds: string[];
   avatar: string;
   schoolId?: string;

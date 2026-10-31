@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   setDoc,
+  deleteDoc,
   getDocs,
   onSnapshot,
   writeBatch,
@@ -105,5 +106,24 @@ export function subscribeToCollection<T>(
   } catch (err) {
     console.warn(`Failed to subscribe to [${collectionName}]:`, err);
     return null;
+  }
+}
+
+/**
+ * Delete a single document from Firestore
+ */
+export async function deleteDocFromFirestore(
+  collectionName: string,
+  id: string
+): Promise<boolean> {
+  if (!isFirebaseConfigured || !db) return false;
+
+  try {
+    const docRef = doc(db, collectionName, id);
+    await deleteDoc(docRef);
+    return true;
+  } catch (err) {
+    console.warn(`Firestore deleteDoc error for [${collectionName}/${id}]:`, err);
+    return false;
   }
 }
